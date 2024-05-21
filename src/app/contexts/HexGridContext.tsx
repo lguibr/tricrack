@@ -22,9 +22,9 @@ interface HexGridContextProps {
   >;
 }
 
-const colsPerRow = [5, 7, 7, 5];
+const colsPerRow = [5, 7, 9, 9, 7, 5];
 const size = 50;
-const rows = 4;
+const rows = colsPerRow.length;
 
 const HexGridContext = createContext<HexGridContextProps | undefined>(
   undefined
