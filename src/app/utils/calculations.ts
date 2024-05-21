@@ -20,30 +20,3 @@ export const isTriangleUp = (triangle: TriangleState, colsPerRow: number[]) => {
     ? triangle.col % 2 === 0
     : triangle.col % 2 !== 0;
 };
-
-export const getTriangleAtPosition = (
-  x: number,
-  y: number,
-  triangles: TriangleState[],
-  size: number,
-  padding: number[]
-): TriangleState | null => {
-  for (const triangle of triangles) {
-    const {
-      x: triangleX,
-      y: triangleY,
-      triangleHeight,
-    } = calculatePosition(triangle, size, padding);
-
-    // Check if the point (x, y) is inside the current triangle
-    if (
-      x >= triangleX - size / 2 &&
-      x <= triangleX + size / 2 &&
-      y >= triangleY - triangleHeight / 2 &&
-      y <= triangleY + triangleHeight / 2
-    ) {
-      return triangle;
-    }
-  }
-  return null;
-};

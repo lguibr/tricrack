@@ -1,79 +1,73 @@
-"use client";
-
-import React, { useRef, useEffect } from "react";
-import p5 from "p5";
+import React, { useEffect } from "react";
 import { useHexGrid } from "../contexts/HexGridContext";
-import { drawTriangle } from "@/app/utils/draw";
-import {
-  calculatePosition,
-  getTriangleAtPosition,
-} from "../utils/calculations";
-import { canvasSize } from "../utils/constants";
+import { calculatePosition, isTriangleUp } from "../utils/calculations";
+import { colsPerRow, size, canvasSize } from "../utils/constants";
+import { TriangleState } from "../utils/types";
+import styled from "styled-components";
+import { Triangle } from "./Triangle";
+
+const Container = styled.div`
+  display: flex;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  border: 1px solid white;
+  justify-content: center;
+  align-items: center;
+`;
+
+const GridContainer = styled.div`
+  position: relative;
+  width: ${canvasSize}px;
+  height: ${canvasSize}px;
+  border: 1px solid blue;
+`;
 
 const HexGridRender: React.FC = () => {
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const { triangles, setTriangles, size, colsPerRow, padding } = useHexGrid();
-  const p5Instance = useRef<p5 | null>(null);
+  const { triangles, setTriangles, padding } = useHexGrid();
 
-  useEffect(() => {
-    const sketch = (p: p5) => {
-      p.setup = () => {
-        p.createCanvas(canvasSize, canvasSize);
-        p.noLoop();
-      };
+  const handleTriangleClick = (triangle: TriangleState) => {
+    console.log("Triangle clicked", triangle);
 
-      p.draw = () => {
-        p.background(0);
-        p.stroke(255);
-        p.strokeWeight(1);
-        p.noFill();
+    setTriangles((prevTriangles) =>
+      prevTriangles.map((t) =>
+        t.row === triangle.row && t.col === triangle.col
+          ? { ...t, isActive: !t.isActive }
+          : t
+      )
+    );
+  };
 
-        // Draw the triangles
-        triangles.forEach((triangle) => {
+  return (
+    <Container>
+      <GridContainer>
+        {triangles.map((triangle) => {
           const { x, y, triangleHeight } = calculatePosition(
             triangle,
             size,
             padding
           );
-          drawTriangle(p, triangle, x, y, size, triangleHeight);
-        });
-      };
+          const isUp = isTriangleUp(triangle, colsPerRow);
+          const zIndex = colsPerRow[triangle.row] - triangle.col;
 
-      p.mousePressed = () => {
-        const triangle = getTriangleAtPosition(
-          p.mouseX,
-          p.mouseY,
-          triangles,
-          size,
-          padding
-        );
-        if (triangle) {
-          console.log("Triangle clicked:", triangle);
-
-          // Update the triangle's state to active
-          setTriangles((prevTriangles) =>
-            prevTriangles.map((t) =>
-              t.row === triangle.row && t.col === triangle.col
-                ? { ...t, isActive: true }
-                : t
-            )
+          return (
+            <Triangle
+              key={`${triangle.row}-${triangle.col}`}
+              x={x}
+              y={y}
+              size={size}
+              triangleHeight={triangleHeight}
+              isUp={isUp}
+              isActive={triangle.isActive}
+              zIndex={zIndex}
+              rowIndex={triangle.row}
+              onClick={() => handleTriangleClick(triangle)}
+            />
           );
-
-          // Redraw the canvas to reflect the state change
-          p.redraw();
-        } else {
-          console.log("No triangle at this position.");
-        }
-      };
-    };
-
-    p5Instance.current = new p5(sketch, canvasRef.current!);
-    return () => {
-      p5Instance.current?.remove();
-    };
-  }, [triangles, size, colsPerRow, padding, setTriangles]);
-
-  return <div ref={canvasRef} />;
+        })}
+      </GridContainer>
+    </Container>
+  );
 };
 
 export default HexGridRender;
