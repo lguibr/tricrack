@@ -1,15 +1,8 @@
 "use client";
 
 import React, { createContext, useState, useContext, useEffect } from "react";
-
-export interface TriangleState {
-  row: number;
-  col: number;
-  isActive: boolean;
-  neighborhoodX: TriangleState | null;
-  neighborhoodY: TriangleState | null;
-  neighborhoodZ: TriangleState | null;
-}
+import { TriangleState } from "../utils/types";
+import { colsPerRow, rows, size } from "../utils/constants";
 
 interface HexGridContextProps {
   triangles: TriangleState[];
@@ -20,11 +13,8 @@ interface HexGridContextProps {
   setHoveredTriangle: React.Dispatch<
     React.SetStateAction<TriangleState | null>
   >;
+  padding: number[];
 }
-
-const colsPerRow = [5, 7, 9, 9, 7, 5];
-const size = 50;
-const rows = colsPerRow.length;
 
 const HexGridContext = createContext<HexGridContextProps | undefined>(
   undefined
@@ -37,6 +27,9 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   const [hoveredTriangle, setHoveredTriangle] = useState<TriangleState | null>(
     null
   );
+
+  const maxCols = Math.max(...colsPerRow);
+  const padding = colsPerRow.map((cols) => (maxCols - cols) / 2);
 
   useEffect(() => {
     const initializeTriangles = () => {
@@ -126,6 +119,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
         setHoveredTriangle,
         colsPerRow,
         size,
+        padding,
       }}
     >
       {children}
