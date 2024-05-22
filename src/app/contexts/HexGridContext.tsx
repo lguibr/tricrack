@@ -117,7 +117,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
         setTriangles,
         hoveredTriangle,
         setHoveredTriangle,
-        colsPerRow,
+        colsPerRow: colsPerRow,
         size,
         padding,
       }}
