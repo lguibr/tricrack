@@ -7,9 +7,9 @@ export const gridPadding = colsPerRowGrid.map(
   (cols) => (maxGridCols - cols) / 2
 );
 
-export const shapeSize = 200;
-export const colsPerRowShape = [5, 7, 7, 5];
-export const trianglesShapeSize = shapeSize / (rowsOnGrid + 1);
+export const shapeSize = triangleSizeGrid * 3;
+export const colsPerRowShape = [3, 3];
+export const trianglesShapeSize = triangleSizeGrid;
 export const maxShapeCols = Math.max(...colsPerRowShape);
 export const shapePadding = colsPerRowShape.map(
   (cols) => (maxShapeCols - cols) / 2

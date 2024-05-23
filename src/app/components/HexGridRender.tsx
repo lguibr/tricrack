@@ -4,7 +4,6 @@ import { useHexGrid } from "../contexts/HexGridContext";
 import {
   buildNewShape,
   calculatePosition,
-  getNeighbors,
   isTriangleUp,
 } from "../utils/calculations";
 import {
@@ -91,11 +90,15 @@ const HexGridRender: React.FC = () => {
   ) => {
     event.preventDefault();
     if (!draggedShape) return;
-
+    const [firstTriangle] = draggedShape;
     const newHoveredTriangles = new Set<string>();
-    const canDrop = draggedShape.every((triangle) => {
-      const targetRow = targetTriangle.row + triangle.row - draggedShape[0].row;
-      const targetCol = targetTriangle.col + triangle.col - draggedShape[0].col;
+    draggedShape.every((triangle) => {
+      const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
+      const targetCol =
+        targetTriangle.col +
+        triangle.col -
+        firstTriangle.col -
+        gridPadding[targetRow];
 
       const targetTriangleUp = isTriangleUp(
         { row: targetRow, col: targetCol },
@@ -123,13 +126,7 @@ const HexGridRender: React.FC = () => {
       return validPosition;
     });
 
-    console.log({ canDrop });
-
-    if (canDrop) {
-      setHoveredTriangles(newHoveredTriangles);
-    } else {
-      setHoveredTriangles(new Set());
-    }
+    setHoveredTriangles(newHoveredTriangles);
   };
 
   const handleDrop = (
@@ -138,45 +135,6 @@ const HexGridRender: React.FC = () => {
   ) => {
     event.preventDefault();
     if (!draggedShape) return;
-
-    const canDrop = draggedShape.every((triangle) => {
-      const targetRow = targetTriangle.row + triangle.row - draggedShape[0].row;
-      const targetCol = targetTriangle.col + triangle.col - draggedShape[0].col;
-
-      const targetTriangleUp = isTriangleUp(
-        { row: targetRow, col: targetCol },
-        colsPerRowGrid
-      );
-      const shapeTriangleUp = isTriangleUp(triangle, colsPerRowGrid);
-
-      return (
-        targetRow >= 0 &&
-        targetRow < hexGridRows &&
-        targetCol >= 0 &&
-        targetCol < colsPerRowGrid[targetRow] &&
-        !triangles.find(
-          (t) => t.row === targetRow && t.col === targetCol && t.isActive
-        ) &&
-        targetTriangleUp === shapeTriangleUp
-      );
-    });
-
-    if (canDrop) {
-      setTriangles((prevTriangles) =>
-        prevTriangles.map((t) => {
-          const shapeTriangle = draggedShape.find(
-            (triangle) =>
-              t.row ===
-                targetTriangle.row + triangle.row - draggedShape[0].row &&
-              t.col === targetTriangle.col + triangle.col - draggedShape[0].col
-          );
-          return shapeTriangle ? { ...t, isActive: true } : t;
-        })
-      );
-    }
-
-    setHoveredTriangles(new Set());
-    setDraggedShape(null);
   };
 
   const handleDragLeave = () => {

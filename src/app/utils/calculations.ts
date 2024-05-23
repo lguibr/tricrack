@@ -84,13 +84,14 @@ export const getNeighbors = (
 };
 
 export const buildNewShape = (): TriangleState[] => {
-  const shapeSize = Math.max(getRandomNumber(1, 5), getRandomNumber(1, 5));
+  const shapeSize = Math.max(getRandomNumber(1, 6), getRandomNumber(1, 6));
+  console.log({ shapeSize });
 
   const newShape: TriangleState[] = [];
   const visited = new Set<string>();
 
-  const initialRow = getRandomNumber(1, 2);
-  const initialCol = getRandomNumber(2, 3);
+  const initialRow = 1;
+  const initialCol = getRandomNumber(0, 1);
 
   const initialTriangle: TriangleState = {
     row: initialRow,
@@ -105,7 +106,7 @@ export const buildNewShape = (): TriangleState[] => {
   visited.add(`${initialRow}-${initialCol}`);
 
   // Use a finite loop with a limit on the number of iterations
-  const maxIterations = 10;
+  const maxIterations = 50;
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (newShape.length >= shapeSize) {
       break;
