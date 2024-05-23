@@ -1,4 +1,4 @@
-import { colsPerRowSmallShape, rows } from "./constants";
+import { colsPerRowShape, rowsOnGrid } from "./constants";
 import { TriangleState } from "./types";
 
 export const calculatePosition = (
@@ -20,7 +20,7 @@ export const isTriangleUp = (
   triangle: { row: number; col: number },
   colsPerRow: number[]
 ) => {
-  return triangle.row <= (colsPerRow.length - 1) / 2
+  return triangle.row < colsPerRow.length / 2
     ? triangle.col % 2 === 0
     : triangle.col % 2 !== 0;
 };
@@ -32,22 +32,25 @@ export function getRandomNumber(min: number, max: number) {
 const getNeighborOffsets = (row: number, col: number, colsPerRow: number[]) => {
   const maxCols = Math.max(...colsPerRow);
   const padding = colsPerRow.map((cols) => (maxCols - cols) / 2);
+
   const paddedCol = col + padding[row];
+  const upperRowColpadding = padding[row - 1] || 0;
+  const DownRowColpadding = padding[row + 1] || 0;
   const isUp = isTriangleUp({ row, col: paddedCol }, colsPerRow);
   return isUp
     ? [
         [0, -1], // left
         [0, 1], // right
-        [1, 0], // bottom
+        [1, 0 - DownRowColpadding], // bottom
       ]
     : [
         [0, -1], // left
         [0, 1], // right
-        [-1, 0], // top
+        [-1, 0 - upperRowColpadding], // top
       ];
 };
 
-const getNeighbors = (
+export const getNeighbors = (
   triangle: TriangleState,
   triangles: TriangleState[],
   colsPerRow: number[]
@@ -61,9 +64,9 @@ const getNeighbors = (
       const neighborCol = col + colOffset;
       if (
         neighborRow >= 0 &&
-        neighborRow < rows &&
+        neighborRow < rowsOnGrid &&
         neighborCol >= 0 &&
-        neighborCol < colsPerRowSmallShape[neighborRow]
+        neighborCol < colsPerRowShape[neighborRow]
       ) {
         return triangles.find(
           (t) => t.row === neighborRow && t.col === neighborCol
@@ -81,7 +84,8 @@ const getNeighbors = (
 };
 
 export const buildNewShape = (): TriangleState[] => {
-  const shapeSize = getRandomNumber(1, 5);
+  const shapeSize = Math.max(getRandomNumber(1, 5), getRandomNumber(1, 5));
+
   const newShape: TriangleState[] = [];
   const visited = new Set<string>();
 
@@ -100,15 +104,15 @@ export const buildNewShape = (): TriangleState[] => {
   newShape.push(initialTriangle);
   visited.add(`${initialRow}-${initialCol}`);
 
-  while (newShape.length < shapeSize) {
-    console.log("tryng allocate a triangle");
+  // Use a finite loop with a limit on the number of iterations
+  const maxIterations = 10;
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
+    if (newShape.length >= shapeSize) {
+      break;
+    }
 
     let currentTriangle = newShape[newShape.length - 1];
-    const neighbors = getNeighbors(
-      currentTriangle,
-      newShape,
-      colsPerRowSmallShape
-    );
+    const neighbors = getNeighbors(currentTriangle, newShape, colsPerRowShape);
     const availableNeighbors = Object.entries(neighbors)
       .filter(([key, value]) => value === null)
       .map(([key]) => key);
@@ -120,7 +124,7 @@ export const buildNewShape = (): TriangleState[] => {
       const neighborOffsets = getNeighborOffsets(
         currentTriangle.row,
         currentTriangle.col,
-        colsPerRowSmallShape
+        colsPerRowShape
       );
       const [offsetX, offsetY] =
         neighborOffsets[["X", "Y", "Z"].indexOf(randomNeighbor)];
@@ -130,9 +134,9 @@ export const buildNewShape = (): TriangleState[] => {
 
       if (
         newRow >= 0 &&
-        newRow < rows &&
+        newRow < rowsOnGrid &&
         newCol >= 0 &&
-        newCol < colsPerRowSmallShape[newRow]
+        newCol < colsPerRowShape[newRow]
       ) {
         const newTriangle: TriangleState = {
           row: newRow,

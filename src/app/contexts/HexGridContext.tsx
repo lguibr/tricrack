@@ -2,7 +2,11 @@
 
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { TriangleState } from "../utils/types";
-import { colsPerRow, rows, size } from "../utils/constants";
+import {
+  colsPerRowGrid,
+  rowsOnGrid,
+  triangleSizeGrid,
+} from "../utils/constants";
 
 interface HexGridContextProps {
   triangles: TriangleState[];
@@ -28,15 +32,12 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
     null
   );
 
-  const maxCols = Math.max(...colsPerRow);
-  const padding = colsPerRow.map((cols) => (maxCols - cols) / 2);
-
   useEffect(() => {
     const initializeTriangles = () => {
       const triangleStates: TriangleState[] = [];
 
-      for (let row = 0; row < rows; row++) {
-        const cols = colsPerRow[row];
+      for (let row = 0; row < rowsOnGrid; row++) {
+        const cols = colsPerRowGrid[row];
         for (let col = 0; col < cols; col++) {
           const triangle: TriangleState = {
             row,
@@ -94,8 +95,8 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
       const neighborRow = row + rowOffset;
       const neighborCol = col + colOffset;
 
-      if (neighborRow >= 0 && neighborRow < rows) {
-        const neighborCols = colsPerRow[neighborRow];
+      if (neighborRow >= 0 && neighborRow < rowsOnGrid) {
+        const neighborCols = colsPerRowGrid[neighborRow];
         if (neighborCol >= 0 && neighborCol < neighborCols) {
           const neighborIndex = triangles.findIndex(
             (triangle) =>
@@ -117,9 +118,8 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
         setTriangles,
         hoveredTriangle,
         setHoveredTriangle,
-        colsPerRow: colsPerRow,
-        size,
-        padding,
+        colsPerRow: colsPerRowGrid,
+        size: triangleSizeGrid,
       }}
     >
       {children}

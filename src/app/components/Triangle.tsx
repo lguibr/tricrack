@@ -7,6 +7,7 @@ export const Triangle = styled.div<{
   $triangleHeight: number;
   $isUp: boolean;
   $isActive: boolean;
+  $isHovering: boolean;
   $zIndex: number;
   $rowIndex: number;
 }>`
@@ -19,12 +20,16 @@ export const Triangle = styled.div<{
   pointer-events: auto;
   border-left: ${({ $size }) => $size / 2 - 2}px solid transparent;
   border-right: ${({ $size }) => $size / 2 - 2}px solid transparent;
-  ${({ $isUp, $triangleHeight, $isActive }) =>
+  ${({ $isUp, $triangleHeight, $isActive, $isHovering }) =>
     $isUp
       ? `
-    border-bottom: ${$triangleHeight}px solid ${$isActive ? "green" : "red"};
+    border-bottom: ${$triangleHeight}px solid ${
+          $isHovering ? "yellow" : $isActive ? "green" : "red"
+        };
   `
       : `
-    border-top: ${$triangleHeight}px solid ${$isActive ? "green" : "red"};
+    border-top: ${$triangleHeight}px solid ${
+          $isHovering ? "yellow" : $isActive ? "green" : "red"
+        };
   `}
 `;

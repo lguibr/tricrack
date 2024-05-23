@@ -1,22 +1,22 @@
-// File: app/components/ShapeRendere.tsx
-
 "use client";
 import React from "react";
 import { TriangleState } from "../utils/types";
 import { calculatePosition, isTriangleUp } from "../utils/calculations";
 import styled from "styled-components";
 import { Triangle } from "./Triangle";
-
-const smallColsPerRow = [5, 7, 7, 5];
-const smallGridSize = 20;
-const smallPadding = smallColsPerRow.map((cols) => (smallGridSize - cols) / 2);
+import {
+  colsPerRowShape,
+  shapePadding,
+  shapeSize,
+  trianglesShapeSize,
+} from "../utils/constants";
 
 const ShapeContainer = styled.div`
   display: flex;
   position: relative;
   flex-direction: column;
-  width: ${smallGridSize * 10}px;
-  height: ${smallGridSize * 10}px;
+  width: ${shapeSize}px;
+  height: ${shapeSize}px;
   justify-content: center;
   align-items: center;
   border: 2px dotted white;
@@ -24,31 +24,39 @@ const ShapeContainer = styled.div`
 
 interface ShapeRendererProps {
   shape: TriangleState[];
+  onDragStart: (event: React.DragEvent, shape: TriangleState[]) => void;
 }
 
-const ShapeRenderer: React.FC<ShapeRendererProps> = ({ shape }) => {
+const ShapeRenderer: React.FC<ShapeRendererProps> = ({
+  shape,
+  onDragStart,
+}) => {
   return (
-    <ShapeContainer>
-      {shape.map((triangle) => {
+    <ShapeContainer
+      draggable
+      onDragStart={(event) => onDragStart(event, shape)}
+    >
+      {shape.map((triangle, index) => {
         const { x, y, triangleHeight } = calculatePosition(
           triangle,
-          smallGridSize,
-          smallPadding
+          trianglesShapeSize,
+          shapePadding
         );
-        const isUp = isTriangleUp(triangle, smallColsPerRow);
-        const zIndex = smallColsPerRow[triangle.row] - triangle.col;
+        const isUp = isTriangleUp(triangle, colsPerRowShape);
+        const zIndex = colsPerRowShape[triangle.row] - triangle.col;
 
         return (
           <Triangle
-            key={`${triangle.row}-${triangle.col}`}
+            key={`shape-triangle-${triangle.row}-${triangle.col}-${index}`}
             $x={x}
             $y={y}
-            $size={smallGridSize}
+            $size={trianglesShapeSize}
             $triangleHeight={triangleHeight}
             $isUp={isUp}
             $isActive={triangle.isActive}
             $zIndex={zIndex}
             $rowIndex={triangle.row}
+            $isHovering={true}
             onClick={() => {}}
           />
         );

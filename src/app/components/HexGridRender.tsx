@@ -4,9 +4,16 @@ import { useHexGrid } from "../contexts/HexGridContext";
 import {
   buildNewShape,
   calculatePosition,
+  getNeighbors,
   isTriangleUp,
 } from "../utils/calculations";
-import { colsPerRow, size, canvasSize } from "../utils/constants";
+import {
+  colsPerRowGrid,
+  triangleSizeGrid,
+  gridSize,
+  colsPerRowShape,
+  gridPadding,
+} from "../utils/constants";
 import { TriangleState } from "../utils/types";
 import styled from "styled-components";
 import { Triangle } from "./Triangle";
@@ -26,8 +33,8 @@ const Container = styled.div`
 
 const GridContainer = styled.div`
   position: relative;
-  width: ${canvasSize}px;
-  height: ${canvasSize}px;
+  width: ${gridSize}px;
+  height: ${gridSize}px;
   border: 1px solid blue;
 `;
 
@@ -53,7 +60,14 @@ const Option = styled.div`
 `;
 
 const HexGridRender: React.FC = () => {
-  const { triangles, setTriangles, padding } = useHexGrid();
+  const { triangles, setTriangles } = useHexGrid();
+  const [draggedShape, setDraggedShape] = useState<TriangleState[] | null>(
+    null
+  );
+  const hexGridRows = colsPerRowGrid.length;
+  const [hoveredTriangles, setHoveredTriangles] = useState<Set<string>>(
+    new Set()
+  );
 
   const handleTriangleClick = (triangle: TriangleState) => {
     console.log("Triangle clicked", triangle);
@@ -65,6 +79,108 @@ const HexGridRender: React.FC = () => {
           : t
       )
     );
+  };
+
+  const handleDragStart = (event: React.DragEvent, shape: TriangleState[]) => {
+    setDraggedShape(shape);
+  };
+
+  const handleDragOver = (
+    event: React.DragEvent,
+    targetTriangle: TriangleState
+  ) => {
+    event.preventDefault();
+    if (!draggedShape) return;
+
+    const newHoveredTriangles = new Set<string>();
+    const canDrop = draggedShape.every((triangle) => {
+      const targetRow = targetTriangle.row + triangle.row - draggedShape[0].row;
+      const targetCol = targetTriangle.col + triangle.col - draggedShape[0].col;
+
+      const targetTriangleUp = isTriangleUp(
+        { row: targetRow, col: targetCol },
+        colsPerRowGrid
+      );
+
+      const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
+
+      console.log({ targetTriangleUp, shapeTriangleUp });
+
+      const validPosition =
+        targetRow >= 0 &&
+        targetRow < hexGridRows &&
+        targetCol >= 0 &&
+        targetCol < colsPerRowGrid[targetRow] &&
+        !triangles.find(
+          (t) => t.row === targetRow && t.col === targetCol && t.isActive
+        ) &&
+        targetTriangleUp === shapeTriangleUp;
+
+      if (validPosition) {
+        newHoveredTriangles.add(`${targetRow}-${targetCol}`);
+      }
+
+      return validPosition;
+    });
+
+    console.log({ canDrop });
+
+    if (canDrop) {
+      setHoveredTriangles(newHoveredTriangles);
+    } else {
+      setHoveredTriangles(new Set());
+    }
+  };
+
+  const handleDrop = (
+    event: React.DragEvent,
+    targetTriangle: TriangleState
+  ) => {
+    event.preventDefault();
+    if (!draggedShape) return;
+
+    const canDrop = draggedShape.every((triangle) => {
+      const targetRow = targetTriangle.row + triangle.row - draggedShape[0].row;
+      const targetCol = targetTriangle.col + triangle.col - draggedShape[0].col;
+
+      const targetTriangleUp = isTriangleUp(
+        { row: targetRow, col: targetCol },
+        colsPerRowGrid
+      );
+      const shapeTriangleUp = isTriangleUp(triangle, colsPerRowGrid);
+
+      return (
+        targetRow >= 0 &&
+        targetRow < hexGridRows &&
+        targetCol >= 0 &&
+        targetCol < colsPerRowGrid[targetRow] &&
+        !triangles.find(
+          (t) => t.row === targetRow && t.col === targetCol && t.isActive
+        ) &&
+        targetTriangleUp === shapeTriangleUp
+      );
+    });
+
+    if (canDrop) {
+      setTriangles((prevTriangles) =>
+        prevTriangles.map((t) => {
+          const shapeTriangle = draggedShape.find(
+            (triangle) =>
+              t.row ===
+                targetTriangle.row + triangle.row - draggedShape[0].row &&
+              t.col === targetTriangle.col + triangle.col - draggedShape[0].col
+          );
+          return shapeTriangle ? { ...t, isActive: true } : t;
+        })
+      );
+    }
+
+    setHoveredTriangles(new Set());
+    setDraggedShape(null);
+  };
+
+  const handleDragLeave = () => {
+    setHoveredTriangles(new Set());
   };
 
   const shapes = useMemo(
@@ -79,23 +195,31 @@ const HexGridRender: React.FC = () => {
         {triangles.map((triangle) => {
           const { x, y, triangleHeight } = calculatePosition(
             triangle,
-            size,
-            padding
+            triangleSizeGrid,
+            gridPadding
           );
-          const isUp = isTriangleUp(triangle, colsPerRow);
-          const zIndex = colsPerRow[triangle.row] - triangle.col;
+          const isUp = isTriangleUp(triangle, colsPerRowGrid);
+          const zIndex = colsPerRowGrid[triangle.row] - triangle.col;
+          const isHovered = hoveredTriangles.has(
+            `${triangle.row}-${triangle.col}`
+          );
+
           return (
             <Triangle
-              key={`${triangle.row}-${triangle.col}`}
+              key={`grid-triangle-${triangle.row}-${triangle.col}`}
               $x={x}
               $y={y}
-              $size={size}
+              $size={triangleSizeGrid}
               $triangleHeight={triangleHeight}
               $isUp={isUp}
               $isActive={triangle.isActive}
               $zIndex={zIndex}
               $rowIndex={triangle.row}
+              $isHovering={isHovered}
               onClick={() => handleTriangleClick(triangle)}
+              onDrop={(event) => handleDrop(event, triangle)}
+              onDragOver={(event) => handleDragOver(event, triangle)}
+              onDragLeave={handleDragLeave}
             />
           );
         })}
@@ -103,7 +227,7 @@ const HexGridRender: React.FC = () => {
       <OptionsContainer>
         {shapes.map((shape, index) => (
           <Option onClick={() => console.log({ index, shape })} key={index}>
-            <ShapeRenderer shape={shape} />
+            <ShapeRenderer shape={shape} onDragStart={handleDragStart} />
           </Option>
         ))}
       </OptionsContainer>
