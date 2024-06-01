@@ -233,7 +233,7 @@ const HexGridRender: React.FC = () => {
       </Modal>
       <ModalContent>
         <h3>
-          Score: {score} / Best Score: {highScore}
+          Score: {score} / Best: {highScore}
         </h3>
       </ModalContent>
       <GridContainer>
