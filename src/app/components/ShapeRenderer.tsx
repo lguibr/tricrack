@@ -22,6 +22,9 @@ const ShapeContainer = styled.div`
   border: 2px dotted white;
 `;
 
+// TODO translate the shape being dragged so it follows the cursor in perspective to the
+// first triangle created used to set the shape
+
 interface ShapeRendererProps {
   shape: TriangleState[];
   onDragStart: (event: React.DragEvent, shape: TriangleState[]) => void;

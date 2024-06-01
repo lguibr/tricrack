@@ -1,4 +1,4 @@
-import { colsPerRowShape, rowsOnGrid } from "./constants";
+import { colsPerRowGrid, colsPerRowShape, rowsOnGrid } from "./constants";
 import { TriangleState } from "./types";
 
 export const calculatePosition = (
@@ -29,25 +29,208 @@ export function getRandomNumber(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-const getNeighborOffsets = (row: number, col: number, colsPerRow: number[]) => {
+export const getNeighborOffsets = (
+  row: number,
+  col: number,
+  colsPerRow: number[]
+) => {
   const maxCols = Math.max(...colsPerRow);
   const padding = colsPerRow.map((cols) => (maxCols - cols) / 2);
+  const currentTowColpadding = padding[row];
 
-  const paddedCol = col + padding[row];
-  const upperRowColpadding = padding[row - 1] || 0;
-  const DownRowColpadding = padding[row + 1] || 0;
-  const isUp = isTriangleUp({ row, col: paddedCol }, colsPerRow);
+  const upperRowColpadding = padding[row - 1] - currentTowColpadding || 0;
+  const downRowColpadding = padding[row + 1] - currentTowColpadding || 0;
+
+  const isUp = isTriangleUp({ row, col }, colsPerRow);
   return isUp
     ? [
         [0, -1], // left
         [0, 1], // right
-        [1, 0 - DownRowColpadding], // bottom
+        [1, 0 - downRowColpadding], // bottom
       ]
     : [
         [0, -1], // left
         [0, 1], // right
         [-1, 0 - upperRowColpadding], // top
       ];
+};
+
+const getHorizontalLineActive = (
+  triangle: TriangleState,
+  triangles: TriangleState[]
+): TriangleState[] => {
+  if (!isTriangleActive(triangle)) return [];
+
+  let index = 0;
+  let neighborTail = triangle ? triangle.neighborhoodX : null;
+  let tail =
+    triangles.find(
+      (triangle) =>
+        triangle.row === neighborTail?.row && triangle.col === neighborTail?.col
+    ) ?? null;
+
+  let neighborHead = triangle ? triangle.neighborhoodY : null;
+
+  let head =
+    triangles.find(
+      (triangle) =>
+        triangle.row === neighborHead?.row && triangle.col === neighborHead?.col
+    ) ?? null;
+
+  const line = [triangle];
+
+  while ((!!tail || !!head) && index < 100) {
+    if (!tail && !head) return line;
+    const tailActive = isTriangleActive(tail);
+    const headActive = isTriangleActive(head);
+
+    if (!tailActive || !headActive) {
+      return [];
+    }
+
+    if (tail) line.push(tail);
+    if (head) line.push(head);
+
+    index += 1;
+    neighborTail = tail ? tail.neighborhoodX : null;
+    tail =
+      triangles.find(
+        (triangle) =>
+          triangle.row === neighborTail?.row &&
+          triangle.col === neighborTail?.col
+      ) ?? null;
+
+    neighborHead = head ? head.neighborhoodY : null;
+
+    head =
+      triangles.find(
+        (triangle) =>
+          triangle.row === neighborHead?.row &&
+          triangle.col === neighborHead?.col
+      ) ?? null;
+  }
+
+  return line;
+};
+const getDiagonalLineActive = (
+  triangle: TriangleState,
+  triangles: TriangleState[],
+  directions: ("neighborhoodX" | "neighborhoodY" | "neighborhoodZ")[]
+): TriangleState[] => {
+  if (!isTriangleActive(triangle)) return [];
+  let index = 0;
+  let neighborTail = triangle ? triangle[directions[index % 2]] : null;
+  let tail =
+    triangles.find(
+      (triangle) =>
+        triangle.row === neighborTail?.row && triangle.col === neighborTail?.col
+    ) ?? null;
+
+  let neighborHead = triangle ? triangle[directions[(index + 1) % 2]] : null;
+
+  let head =
+    triangles.find(
+      (triangle) =>
+        triangle.row === neighborHead?.row && triangle.col === neighborHead?.col
+    ) ?? null;
+
+  let line = [triangle];
+
+  while (!!tail || !!head) {
+    if (!tail && !head) return line;
+
+    const tailActive = isTriangleActive(tail);
+    const headActive = isTriangleActive(head);
+
+    if (!tailActive || !headActive) return [];
+
+    if (tail) line.push(tail);
+    if (head) line.push(head);
+
+    index += 1;
+    neighborTail = tail ? tail[directions[index % 2]] : null;
+    tail =
+      triangles.find(
+        (triangle) =>
+          triangle.row === neighborTail?.row &&
+          triangle.col === neighborTail?.col
+      ) ?? null;
+
+    neighborHead = head ? head[directions[(index + 1) % 2]] : null;
+
+    head =
+      triangles.find(
+        (triangle) =>
+          triangle.row === neighborHead?.row &&
+          triangle.col === neighborHead?.col
+      ) ?? null;
+  }
+
+  return line;
+};
+const isTriangleActive = (triangle: TriangleState | null) =>
+  triangle == null || triangle?.isActive;
+
+export const checkLineCollapse = (
+  triangles: TriangleState[]
+): TriangleState[] => {
+  const isFirstRow = (triangle: TriangleState) => triangle.row === 0;
+  const isFirstCol = (triangle: TriangleState) => triangle.col === 0;
+  const isColOdd = (triangle: TriangleState) => triangle.col % 2 !== 0;
+
+  const isLastRow = (triangle: TriangleState) =>
+    triangle.row === colsPerRowGrid.length - 1;
+
+  const trianglesToCheckDiagonal = triangles?.filter(
+    (triangle) =>
+      (isFirstRow(triangle) && isColOdd(triangle)) ||
+      (isLastRow(triangle) && isColOdd(triangle))
+  );
+
+  const trianglesToCheckHorizontal = triangles?.filter((triangle) =>
+    isFirstCol(triangle)
+  );
+
+  const yzLineTriangles = trianglesToCheckDiagonal?.map((triangle) => {
+    return getDiagonalLineActive(triangle, triangles, [
+      "neighborhoodY",
+      "neighborhoodZ",
+    ]);
+  });
+
+  const zxLineTriangles = trianglesToCheckDiagonal?.map((triangle) =>
+    getDiagonalLineActive(triangle, triangles, [
+      "neighborhoodZ",
+      "neighborhoodX",
+    ])
+  );
+
+  const horizontalLineTriangles = trianglesToCheckHorizontal?.map((triangle) =>
+    getHorizontalLineActive(triangle, triangles)
+  );
+
+  const lines = [
+    ...(yzLineTriangles ?? []),
+    ...(zxLineTriangles ?? []),
+    ...(horizontalLineTriangles ?? []),
+  ]
+    .flat()
+    .filter((_) => _ != null);
+
+  const collapsedUniqueTriangles = removeDuplicatedTrianglesByColAndRow(lines);
+
+  return collapsedUniqueTriangles;
+};
+
+const removeDuplicatedTrianglesByColAndRow = (triangles: TriangleState[]) => {
+  const triangleMap = new Map<string, TriangleState>();
+
+  triangles.forEach((triangle) => {
+    const key = `${triangle?.row}-${triangle?.col}`;
+    triangleMap.set(key, triangle);
+  });
+
+  return Array.from(triangleMap.values());
 };
 
 export const getNeighbors = (
@@ -62,17 +245,11 @@ export const getNeighbors = (
     .map(([rowOffset, colOffset]) => {
       const neighborRow = row + rowOffset;
       const neighborCol = col + colOffset;
-      if (
-        neighborRow >= 0 &&
-        neighborRow < rowsOnGrid &&
-        neighborCol >= 0 &&
-        neighborCol < colsPerRowShape[neighborRow]
-      ) {
-        return triangles.find(
-          (t) => t.row === neighborRow && t.col === neighborCol
-        );
-      }
-      return null;
+
+      return triangles.find(
+        (triangle) =>
+          triangle.row === neighborRow && triangle.col === neighborCol
+      );
     })
     .filter((neighbor) => neighbor !== null) as TriangleState[];
 
@@ -85,7 +262,6 @@ export const getNeighbors = (
 
 export const buildNewShape = (): TriangleState[] => {
   const shapeSize = Math.max(getRandomNumber(1, 6), getRandomNumber(1, 6));
-  console.log({ shapeSize });
 
   const newShape: TriangleState[] = [];
   const visited = new Set<string>();
@@ -105,7 +281,6 @@ export const buildNewShape = (): TriangleState[] => {
   newShape.push(initialTriangle);
   visited.add(`${initialRow}-${initialCol}`);
 
-  // Use a finite loop with a limit on the number of iterations
   const maxIterations = 50;
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (newShape.length >= shapeSize) {
@@ -148,7 +323,6 @@ export const buildNewShape = (): TriangleState[] => {
           neighborhoodZ: null,
         };
 
-        // Update the neighbor references
         if (randomNeighbor === "X") {
           currentTriangle.neighborhoodX = newTriangle;
           newTriangle.neighborhoodX = currentTriangle;

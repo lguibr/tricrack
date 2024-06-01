@@ -7,6 +7,7 @@ import {
   rowsOnGrid,
   triangleSizeGrid,
 } from "../utils/constants";
+import { checkLineCollapse, getNeighbors } from "../utils/calculations";
 
 interface HexGridContextProps {
   triangles: TriangleState[];
@@ -14,10 +15,11 @@ interface HexGridContextProps {
   hoveredTriangle: TriangleState | null;
   colsPerRow: number[];
   size: number;
+  score: number;
+  highScore: number;
   setHoveredTriangle: React.Dispatch<
     React.SetStateAction<TriangleState | null>
   >;
-  padding: number[];
 }
 
 const HexGridContext = createContext<HexGridContextProps | undefined>(
@@ -31,6 +33,16 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   const [hoveredTriangle, setHoveredTriangle] = useState<TriangleState | null>(
     null
   );
+
+  const initialHighScore = parseInt(
+    typeof window !== "undefined"
+      ? localStorage.getItem("highScore") || "0"
+      : "0",
+    10
+  );
+
+  const [score, setScore] = useState<number>(0);
+  const [highScore, setHighScore] = useState<number>(initialHighScore);
 
   useEffect(() => {
     const initializeTriangles = () => {
@@ -51,9 +63,13 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
-      // Assign neighbors after triangles are initialized
       triangleStates.forEach((triangle) => {
-        const neighbors = getNeighbors(triangle, triangleStates);
+        const neighbors = getNeighbors(
+          triangle,
+          triangleStates,
+          colsPerRowGrid
+        );
+
         triangle.neighborhoodX = neighbors.X;
         triangle.neighborhoodY = neighbors.Y;
         triangle.neighborhoodZ = neighbors.Z;
@@ -65,55 +81,43 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
     initializeTriangles();
   }, []);
 
-  const getNeighbors = (
-    triangle: TriangleState,
-    triangles: TriangleState[]
-  ) => {
-    const { row, col } = triangle;
+  const triangleActivations = JSON.stringify(
+    triangles.map(({ isActive }) => isActive)
+  );
 
-    const isUp = (row + col) % 2 === 0;
+  useEffect(() => {
+    const lineTriangles = checkLineCollapse(triangles);
 
-    const neighbors = {
-      X: null as TriangleState | null,
-      Y: null as TriangleState | null,
-      Z: null as TriangleState | null,
-    };
+    setScore((prev) => prev + lineTriangles.length * 2);
+    setTriangles((prevTriangles) =>
+      prevTriangles.map((t) =>
+        lineTriangles.find(
+          (lineTriangle) =>
+            lineTriangle?.row === t?.row && lineTriangle?.col === t?.col
+        )
+          ? { ...t, isActive: false }
+          : t
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triangleActivations]);
 
-    const neighborOffsets = isUp
-      ? [
-          [0, -1],
-          [0, 1],
-          [1, 0],
-        ]
-      : [
-          [0, -1],
-          [0, 1],
-          [-1, 0],
-        ];
-
-    neighborOffsets.forEach(([rowOffset, colOffset], index) => {
-      const neighborRow = row + rowOffset;
-      const neighborCol = col + colOffset;
-
-      if (neighborRow >= 0 && neighborRow < rowsOnGrid) {
-        const neighborCols = colsPerRowGrid[neighborRow];
-        if (neighborCol >= 0 && neighborCol < neighborCols) {
-          const neighborIndex = triangles.findIndex(
-            (triangle) =>
-              triangle.row === neighborRow && triangle.col === neighborCol
-          );
-          neighbors[Object.keys(neighbors)[index] as keyof typeof neighbors] =
-            triangles[neighborIndex];
-        }
-      }
-    });
-
-    return neighbors;
-  };
+  useEffect(() => {
+    const localStorageScore = parseInt(
+      localStorage.getItem("highScore") || "0",
+      10
+    );
+    if (score > localStorageScore) {
+      localStorage.setItem("highScore", score.toString());
+      setHighScore(score);
+    }
+  }, [score]);
 
   return (
     <HexGridContext.Provider
       value={{
+        score,
+        highScore,
         triangles,
         setTriangles,
         hoveredTriangle,

@@ -1,4 +1,4 @@
-// File: app/components/HexGridRender.tsx
+"use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { useHexGrid } from "../contexts/HexGridContext";
 import {
@@ -59,7 +59,7 @@ const Option = styled.div`
 `;
 
 const HexGridRender: React.FC = () => {
-  const { triangles, setTriangles } = useHexGrid();
+  const { triangles, setTriangles, score, highScore } = useHexGrid();
   const [draggedShape, setDraggedShape] = useState<TriangleState[] | null>(
     null
   );
@@ -69,7 +69,7 @@ const HexGridRender: React.FC = () => {
   );
 
   const handleTriangleClick = (triangle: TriangleState) => {
-    console.log("Triangle clicked", triangle);
+    console.table(triangle);
 
     setTriangles((prevTriangles) =>
       prevTriangles.map((t) =>
@@ -80,9 +80,8 @@ const HexGridRender: React.FC = () => {
     );
   };
 
-  const handleDragStart = (event: React.DragEvent, shape: TriangleState[]) => {
+  const handleDragStart = (_: React.DragEvent, shape: TriangleState[]) =>
     setDraggedShape(shape);
-  };
 
   const handleDragOver = (
     event: React.DragEvent,
@@ -106,8 +105,6 @@ const HexGridRender: React.FC = () => {
       );
 
       const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
-
-      console.log({ targetTriangleUp, shapeTriangleUp });
 
       const validPosition =
         targetRow >= 0 &&
@@ -135,6 +132,54 @@ const HexGridRender: React.FC = () => {
   ) => {
     event.preventDefault();
     if (!draggedShape) return;
+
+    const [firstTriangle] = draggedShape;
+    const validPositions: { row: number; col: number }[] = [];
+
+    const isValidDrop = draggedShape.every((triangle) => {
+      const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
+      const targetCol =
+        targetTriangle.col +
+        triangle.col -
+        firstTriangle.col -
+        gridPadding[targetRow];
+
+      const targetTriangleUp = isTriangleUp(
+        { row: targetRow, col: targetCol },
+        colsPerRowGrid
+      );
+
+      const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
+
+      const validPosition =
+        targetRow >= 0 &&
+        targetRow < hexGridRows &&
+        targetCol >= 0 &&
+        targetCol < colsPerRowGrid[targetRow] &&
+        !triangles.find(
+          (t) => t.row === targetRow && t.col === targetCol && t.isActive
+        ) &&
+        targetTriangleUp === shapeTriangleUp;
+
+      if (validPosition) {
+        validPositions.push({ row: targetRow, col: targetCol });
+      }
+
+      return validPosition;
+    });
+
+    if (isValidDrop) {
+      setTriangles((prevTriangles) =>
+        prevTriangles.map((t) =>
+          validPositions.some((pos) => pos.row === t.row && pos.col === t.col)
+            ? { ...t, isActive: true }
+            : t
+        )
+      );
+    }
+
+    setDraggedShape(null);
+    setHoveredTriangles(new Set());
   };
 
   const handleDragLeave = () => {
@@ -148,7 +193,9 @@ const HexGridRender: React.FC = () => {
 
   return (
     <Container>
-      <div>Current Score / Best Score</div>
+      <div>
+        Score: {score} / Best Score: {highScore}
+      </div>
       <GridContainer>
         {triangles.map((triangle) => {
           const { x, y, triangleHeight } = calculatePosition(
