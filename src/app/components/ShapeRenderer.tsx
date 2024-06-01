@@ -19,7 +19,6 @@ const ShapeContainer = styled.div`
   height: ${shapeSize}px;
   justify-content: center;
   align-items: center;
-  border: 2px dotted white;
 `;
 
 // TODO translate the shape being dragged so it follows the cursor in perspective to the

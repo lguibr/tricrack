@@ -1,11 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useHexGrid } from "../contexts/HexGridContext";
-import {
-  buildNewShape,
-  calculatePosition,
-  isTriangleUp,
-} from "../utils/calculations";
+import { calculatePosition, isTriangleUp } from "../utils/calculations";
 import {
   colsPerRowGrid,
   triangleSizeGrid,
@@ -20,13 +16,13 @@ import ShapeRenderer from "./ShapeRenderer";
 import Modal from "./Modal";
 
 const Container = styled.div`
-  display: flex;
+  display: grid;
   position: relative;
-  flex-direction: column;
   width: 100vw;
+  max-width: 100vw;
   height: 100vh;
-  gap: 2rem;
-  border: 1px solid white;
+  max-height: 100vh;
+  box-sizing: border-box;
   justify-content: center;
   align-items: center;
 `;
@@ -35,14 +31,12 @@ const GridContainer = styled.div`
   position: relative;
   width: ${gridSize}px;
   height: ${gridSize}px;
-  border: 1px solid blue;
 `;
 
 const OptionsContainer = styled.div`
   position: relative;
   width: 50%;
-  height: 4rem;
-  border: 1px solid green;
+  height: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   justify-content: space-around;
@@ -54,7 +48,6 @@ const Option = styled.div`
   justify-content: center;
   align-items: center;
   position: relative;
-  border: 2px dotted yellow;
   height: 100%;
   cursor: pointer;
 `;
@@ -238,9 +231,11 @@ const HexGridRender: React.FC = () => {
           <Button onClick={() => reset()}>Restart</Button>
         </ModalContent>
       </Modal>
-      <div>
-        Score: {score} / Best Score: {highScore}
-      </div>
+      <ModalContent>
+        <h3>
+          Score: {score} / Best Score: {highScore}
+        </h3>
+      </ModalContent>
       <GridContainer>
         {triangles.map((triangle) => {
           const { x, y, triangleHeight } = calculatePosition(
