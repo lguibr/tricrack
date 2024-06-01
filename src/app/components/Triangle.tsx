@@ -15,11 +15,11 @@ export const Triangle = styled.div<{
   width: 0;
   height: 0;
   left: ${({ $x }) => $x}px;
-  top: ${({ $y, $rowIndex }) => $y + $rowIndex * 6}px;
+  top: ${({ $y, $rowIndex }) => $y + $rowIndex * 5}px;
   z-index: ${({ $zIndex }) => $zIndex};
   pointer-events: auto;
-  border-left: ${({ $size }) => $size / 2 - 6}px solid transparent;
-  border-right: ${({ $size }) => $size / 2 - 6}px solid transparent;
+  border-left: ${({ $size }) => $size / 2 - 4}px solid transparent;
+  border-right: ${({ $size }) => $size / 2 - 4}px solid transparent;
   ${({ $isUp, $triangleHeight, $isActive, $isHovering }) =>
     $isUp
       ? `
