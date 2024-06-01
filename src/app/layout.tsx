@@ -18,6 +18,7 @@ export default function RootLayout({
   return (
     <StyledComponentsRegistry>
       <html lang="en">
+        <script src="DragDropTouch.js" async></script>
         <body className={inter.className}>{children}</body>
       </html>
     </StyledComponentsRegistry>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useHexGrid } from "../contexts/HexGridContext";
 import {
   buildNewShape,
@@ -17,6 +17,7 @@ import { TriangleState } from "../utils/types";
 import styled from "styled-components";
 import { Triangle } from "./Triangle";
 import ShapeRenderer from "./ShapeRenderer";
+import Modal from "./Modal";
 
 const Container = styled.div`
   display: flex;
@@ -59,140 +60,184 @@ const Option = styled.div`
 `;
 
 const HexGridRender: React.FC = () => {
-  const { triangles, setTriangles, score, highScore } = useHexGrid();
-  const [draggedShape, setDraggedShape] = useState<TriangleState[] | null>(
-    null
-  );
+  const {
+    triangles,
+    setTriangles,
+    score,
+    highScore,
+    shapes,
+    setShape,
+    resetGame,
+    addToScore,
+  } = useHexGrid();
+  const [draggedShape, setDraggedShape] = useState<{
+    shape: TriangleState[] | null;
+    index: number | null;
+  }>({ shape: null, index: null });
   const hexGridRows = colsPerRowGrid.length;
+
+  const [showModal, setShowModal] = useState(false);
+
   const [hoveredTriangles, setHoveredTriangles] = useState<Set<string>>(
     new Set()
   );
 
-  const handleTriangleClick = (triangle: TriangleState) => {
-    console.table(triangle);
-
-    setTriangles((prevTriangles) =>
-      prevTriangles.map((t) =>
-        t.row === triangle.row && t.col === triangle.col
-          ? { ...t, isActive: !t.isActive }
-          : t
-      )
-    );
-  };
-
-  const handleDragStart = (_: React.DragEvent, shape: TriangleState[]) =>
-    setDraggedShape(shape);
-
-  const handleDragOver = (
-    event: React.DragEvent,
-    targetTriangle: TriangleState
-  ) => {
-    event.preventDefault();
-    if (!draggedShape) return;
-    const [firstTriangle] = draggedShape;
-    const newHoveredTriangles = new Set<string>();
-    draggedShape.every((triangle) => {
-      const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
-      const targetCol =
-        targetTriangle.col +
-        triangle.col -
-        firstTriangle.col -
-        gridPadding[targetRow];
-
-      const targetTriangleUp = isTriangleUp(
-        { row: targetRow, col: targetCol },
-        colsPerRowGrid
-      );
-
-      const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
-
-      const validPosition =
-        targetRow >= 0 &&
-        targetRow < hexGridRows &&
-        targetCol >= 0 &&
-        targetCol < colsPerRowGrid[targetRow] &&
-        !triangles.find(
-          (t) => t.row === targetRow && t.col === targetCol && t.isActive
-        ) &&
-        targetTriangleUp === shapeTriangleUp;
-
-      if (validPosition) {
-        newHoveredTriangles.add(`${targetRow}-${targetCol}`);
-      }
-
-      return validPosition;
-    });
-
-    setHoveredTriangles(newHoveredTriangles);
-  };
-
-  const handleDrop = (
-    event: React.DragEvent,
-    targetTriangle: TriangleState
-  ) => {
-    event.preventDefault();
-    if (!draggedShape) return;
-
-    const [firstTriangle] = draggedShape;
-    const validPositions: { row: number; col: number }[] = [];
-
-    const isValidDrop = draggedShape.every((triangle) => {
-      const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
-      const targetCol =
-        targetTriangle.col +
-        triangle.col -
-        firstTriangle.col -
-        gridPadding[targetRow];
-
-      const targetTriangleUp = isTriangleUp(
-        { row: targetRow, col: targetCol },
-        colsPerRowGrid
-      );
-
-      const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
-
-      const validPosition =
-        targetRow >= 0 &&
-        targetRow < hexGridRows &&
-        targetCol >= 0 &&
-        targetCol < colsPerRowGrid[targetRow] &&
-        !triangles.find(
-          (t) => t.row === targetRow && t.col === targetCol && t.isActive
-        ) &&
-        targetTriangleUp === shapeTriangleUp;
-
-      if (validPosition) {
-        validPositions.push({ row: targetRow, col: targetCol });
-      }
-
-      return validPosition;
-    });
-
-    if (isValidDrop) {
+  const handleTriangleClick = useCallback(
+    (triangle: TriangleState) => {
       setTriangles((prevTriangles) =>
         prevTriangles.map((t) =>
-          validPositions.some((pos) => pos.row === t.row && pos.col === t.col)
-            ? { ...t, isActive: true }
+          t.row === triangle.row && t.col === triangle.col
+            ? { ...t, isActive: !t.isActive }
             : t
         )
       );
+    },
+    [setTriangles]
+  );
+
+  const calculateHoveredAndValidPositions = useCallback(
+    (
+      event: React.DragEvent | null,
+      targetTriangle: TriangleState,
+      isDropEvent = false,
+      shape: TriangleState[] | null = draggedShape.shape
+    ) => {
+      event?.preventDefault();
+      if (!shape) return;
+
+      const firstTriangle = shape[0];
+      const defaultColOffset = gridPadding[targetTriangle.row];
+      const newHoveredTriangles = new Set<string>();
+      const validPositions: { row: number; col: number }[] = [];
+
+      const isValid = shape.every((triangle) => {
+        const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
+        const targetCol =
+          targetTriangle.col +
+          triangle.col -
+          firstTriangle.col -
+          gridPadding[targetRow] +
+          defaultColOffset;
+        const targetTriangleUp = isTriangleUp(
+          { row: targetRow, col: targetCol },
+          colsPerRowGrid
+        );
+        const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
+
+        const validPosition =
+          targetRow >= 0 &&
+          targetRow < hexGridRows &&
+          targetCol >= 0 &&
+          targetCol < colsPerRowGrid[targetRow] &&
+          !triangles.find(
+            (t) => t.row === targetRow && t.col === targetCol && t.isActive
+          ) &&
+          targetTriangleUp === shapeTriangleUp;
+
+        if (validPosition) {
+          if (isDropEvent) {
+            validPositions.push({ row: targetRow, col: targetCol });
+          } else {
+            newHoveredTriangles.add(`${targetRow}-${targetCol}`);
+          }
+        }
+
+        return validPosition;
+      });
+
+      return { newHoveredTriangles, validPositions, isValid };
+    },
+    [draggedShape, triangles, hexGridRows]
+  );
+
+  const canPlaceAnyShape = useCallback(
+    (shape: TriangleState[]) => {
+      return triangles.some((triangle) => {
+        const { isValid } =
+          calculateHoveredAndValidPositions(null, triangle, true, shape) ?? {};
+        return isValid;
+      });
+    },
+    [calculateHoveredAndValidPositions, triangles]
+  );
+
+  useEffect(() => {
+    if (
+      shapes.flat().length !== 0 &&
+      shapes
+        .filter((shape) => shape.length > 0)
+        .every((shape) => !canPlaceAnyShape(shape))
+    ) {
+      console.log("game over");
+      setShowModal(true);
     }
+  }, [canPlaceAnyShape, shapes]); // This effect checks whenever shapes array changes
 
-    setDraggedShape(null);
-    setHoveredTriangles(new Set());
-  };
-
-  const handleDragLeave = () => {
-    setHoveredTriangles(new Set());
-  };
-
-  const shapes = useMemo(
-    () => Array.from({ length: 3 }, () => buildNewShape()),
+  const handleDragStart = useCallback(
+    (index: number, _: React.DragEvent, shape: TriangleState[]) => {
+      setDraggedShape({ shape, index });
+    },
     []
   );
 
+  const handleDragOver = useCallback(
+    (event: React.DragEvent, targetTriangle: TriangleState) => {
+      const { newHoveredTriangles, isValid } =
+        calculateHoveredAndValidPositions(event, targetTriangle) ?? {};
+      isValid &&
+        newHoveredTriangles &&
+        setHoveredTriangles(newHoveredTriangles);
+    },
+    [calculateHoveredAndValidPositions]
+  );
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent, targetTriangle: TriangleState) => {
+      const { validPositions, isValid } =
+        calculateHoveredAndValidPositions(event, targetTriangle, true) ?? {};
+      if (isValid && draggedShape.index !== null) {
+        draggedShape?.shape && addToScore(draggedShape.shape.length);
+        setShape(draggedShape.index, []);
+        setTriangles((prevTriangles) =>
+          prevTriangles.map((triangle) =>
+            validPositions?.some(
+              (pos) => pos.row === triangle.row && pos.col === triangle.col
+            )
+              ? { ...triangle, isActive: true }
+              : triangle
+          )
+        );
+      }
+      setDraggedShape({ shape: null, index: null });
+      setHoveredTriangles(new Set());
+    },
+    [
+      calculateHoveredAndValidPositions,
+      draggedShape.index,
+      draggedShape.shape,
+      addToScore,
+      setShape,
+      setTriangles,
+    ]
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setHoveredTriangles(new Set());
+  }, []);
+
+  const reset = useCallback(() => {
+    setShowModal(false);
+    resetGame();
+  }, [resetGame]);
+
   return (
     <Container>
+      <Modal open={showModal} setOpen={setShowModal}>
+        <ModalContent>
+          <h1>Game Over</h1>
+          <Button onClick={() => reset()}>Restart</Button>
+        </ModalContent>
+      </Modal>
       <div>
         Score: {score} / Best Score: {highScore}
       </div>
@@ -231,8 +276,11 @@ const HexGridRender: React.FC = () => {
       </GridContainer>
       <OptionsContainer>
         {shapes.map((shape, index) => (
-          <Option onClick={() => console.log({ index, shape })} key={index}>
-            <ShapeRenderer shape={shape} onDragStart={handleDragStart} />
+          <Option key={index}>
+            <ShapeRenderer
+              shape={shape}
+              onDragStart={(event) => handleDragStart(index, event, shape)}
+            />
           </Option>
         ))}
       </OptionsContainer>
@@ -241,3 +289,21 @@ const HexGridRender: React.FC = () => {
 };
 
 export default HexGridRender;
+
+const ModalContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background-color: #222;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+`;

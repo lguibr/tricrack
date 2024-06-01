@@ -7,7 +7,11 @@ import {
   rowsOnGrid,
   triangleSizeGrid,
 } from "../utils/constants";
-import { checkLineCollapse, getNeighbors } from "../utils/calculations";
+import {
+  buildNewShape,
+  checkLineCollapse,
+  getNeighbors,
+} from "../utils/calculations";
 
 interface HexGridContextProps {
   triangles: TriangleState[];
@@ -20,6 +24,10 @@ interface HexGridContextProps {
   setHoveredTriangle: React.Dispatch<
     React.SetStateAction<TriangleState | null>
   >;
+  shapes: TriangleState[][];
+  setShape: (index: number, shape: TriangleState[]) => void;
+  resetGame: () => void;
+  addToScore: (points: number) => void;
 }
 
 const HexGridContext = createContext<HexGridContextProps | undefined>(
@@ -40,9 +48,69 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
       : "0",
     10
   );
-
   const [score, setScore] = useState<number>(0);
   const [highScore, setHighScore] = useState<number>(initialHighScore);
+  const [shapes, setShapes] = useState<TriangleState[][]>(
+    Array.from({ length: 3 }, () => buildNewShape())
+  );
+  const addToScore = (points: number) => setScore((prev) => prev + points);
+  const resetGame = () => {
+    // Reset score
+    setScore(0);
+
+    // Reset triangles to initial state
+    const initialTriangles: TriangleState[] = [];
+    for (let row = 0; row < rowsOnGrid; row++) {
+      const cols = colsPerRowGrid[row];
+      for (let col = 0; col < cols; col++) {
+        const triangle = {
+          row,
+          col,
+          isActive: false,
+          neighborhoodX: null,
+          neighborhoodY: null,
+          neighborhoodZ: null,
+        };
+        initialTriangles.push(triangle);
+      }
+    }
+
+    // Assign neighbors to the reset triangles
+    initialTriangles.forEach((triangle) => {
+      const neighbors = getNeighbors(
+        triangle,
+        initialTriangles,
+        colsPerRowGrid
+      );
+      triangle.neighborhoodX = neighbors.X;
+      triangle.neighborhoodY = neighbors.Y;
+      triangle.neighborhoodZ = neighbors.Z;
+    });
+
+    setTriangles(initialTriangles);
+
+    // Reset shapes
+    setShapes(Array.from({ length: 3 }, () => buildNewShape()));
+
+    // Optionally, reset hoveredTriangle if applicable
+    setHoveredTriangle(null);
+  };
+
+  useEffect(() => {
+    const flattedShapes = shapes.flat();
+    const emptyShapes = flattedShapes.length === 0;
+    if (emptyShapes) {
+      setShapes(Array.from({ length: 3 }, () => buildNewShape()));
+    }
+  }, [shapes]);
+
+  const setShape = (index: number, shape: TriangleState[]) => {
+    setShapes((prevShapes) => {
+      const newShapes = [...prevShapes];
+      newShapes[index] = shape;
+      return newShapes;
+    });
+  };
 
   useEffect(() => {
     const initializeTriangles = () => {
@@ -116,6 +184,8 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <HexGridContext.Provider
       value={{
+        shapes,
+        setShape,
         score,
         highScore,
         triangles,
@@ -124,6 +194,8 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
         setHoveredTriangle,
         colsPerRow: colsPerRowGrid,
         size: triangleSizeGrid,
+        resetGame,
+        addToScore,
       }}
     >
       {children}

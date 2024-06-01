@@ -261,7 +261,7 @@ export const getNeighbors = (
 };
 
 export const buildNewShape = (): TriangleState[] => {
-  const shapeSize = Math.max(getRandomNumber(1, 6), getRandomNumber(1, 6));
+  const shapeSize = getRandomNumber(1, 6);
 
   const newShape: TriangleState[] = [];
   const visited = new Set<string>();
