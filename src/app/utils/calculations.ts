@@ -16,6 +16,22 @@ export const calculatePosition = (
   return { x, y, triangleHeight };
 };
 
+export const calculateRowCol = (
+  x: number,
+  y: number,
+  size: number,
+  padding: number[]
+) => {
+  const triangleHeight = (size * Math.sqrt(3)) / 2;
+  const halfSize = size / 2;
+
+  const row = Math.floor(y / triangleHeight);
+  const rowPadding = padding[row] * halfSize;
+  const col = Math.floor((x - halfSize - rowPadding) / halfSize);
+
+  return { row, col };
+};
+
 export const isTriangleUp = (
   triangle: { row: number; col: number },
   colsPerRow: number[]
@@ -112,6 +128,7 @@ const getHorizontalLineActive = (
 
   return line;
 };
+
 const getDiagonalLineActive = (
   triangle: TriangleState,
   triangles: TriangleState[],

@@ -1,7 +1,11 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useHexGrid } from "../contexts/HexGridContext";
-import { calculatePosition, isTriangleUp } from "../utils/calculations";
+import {
+  calculatePosition,
+  calculateRowCol,
+  isTriangleUp,
+} from "../utils/calculations";
 import {
   colsPerRowGrid,
   triangleSizeGrid,
@@ -52,6 +56,8 @@ const Option = styled.div`
   cursor: pointer;
 `;
 
+const offSetY = 0;
+
 const HexGridRender: React.FC = () => {
   const {
     triangles,
@@ -68,6 +74,10 @@ const HexGridRender: React.FC = () => {
     index: number | null;
   }>({ shape: null, index: null });
   const hexGridRows = colsPerRowGrid.length;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const gridPosition = gridRef.current?.getBoundingClientRect();
+  console.log({ gridRef });
+  console.log({ gridPosition });
 
   const [showModal, setShowModal] = useState(false);
 
@@ -174,37 +184,58 @@ const HexGridRender: React.FC = () => {
   );
 
   const handleDragOver = useCallback(
-    (event: React.DragEvent, targetTriangle: TriangleState) => {
-      const { newHoveredTriangles, isValid } =
-        calculateHoveredAndValidPositions(event, targetTriangle) ?? {};
-      isValid &&
-        newHoveredTriangles &&
-        setHoveredTriangles(newHoveredTriangles);
+    (event: React.DragEvent) => {
+      const x = event.clientX - (gridPosition?.left || 0);
+      const y = event.clientY - (gridPosition?.top || 0) - offSetY;
+      const { col, row } = calculateRowCol(x, y, triangleSizeGrid, gridPadding);
+
+      const targetTriangle = triangles.find(
+        (t) => t.row === row && t.col === col
+      );
+
+      if (targetTriangle) {
+        const { newHoveredTriangles, isValid } =
+          calculateHoveredAndValidPositions(event, targetTriangle) ?? {};
+        isValid &&
+          newHoveredTriangles &&
+          setHoveredTriangles(newHoveredTriangles);
+      }
     },
-    [calculateHoveredAndValidPositions]
+    [calculateHoveredAndValidPositions, gridPosition, triangles]
   );
 
   const handleDrop = useCallback(
-    (event: React.DragEvent, targetTriangle: TriangleState) => {
-      const { validPositions, isValid } =
-        calculateHoveredAndValidPositions(event, targetTriangle, true) ?? {};
-      if (isValid && draggedShape.index !== null) {
-        draggedShape?.shape && addToScore(draggedShape.shape.length);
-        setShape(draggedShape.index, []);
-        setTriangles((prevTriangles) =>
-          prevTriangles.map((triangle) =>
-            validPositions?.some(
-              (pos) => pos.row === triangle.row && pos.col === triangle.col
+    (event: React.DragEvent) => {
+      const x = event.clientX - (gridPosition?.left || 0);
+      const y = event.clientY - (gridPosition?.top || 0) - offSetY;
+      const { col, row } = calculateRowCol(x, y, triangleSizeGrid, gridPadding);
+
+      const targetTriangle = triangles.find(
+        (t) => t.row === row && t.col === col
+      );
+      if (targetTriangle) {
+        const { validPositions, isValid } =
+          calculateHoveredAndValidPositions(event, targetTriangle, true) ?? {};
+        if (isValid && draggedShape.index !== null) {
+          draggedShape?.shape && addToScore(draggedShape.shape.length);
+          setShape(draggedShape.index, []);
+          setTriangles((prevTriangles) =>
+            prevTriangles.map((triangle) =>
+              validPositions?.some(
+                (pos) => pos.row === triangle.row && pos.col === triangle.col
+              )
+                ? { ...triangle, isActive: true }
+                : triangle
             )
-              ? { ...triangle, isActive: true }
-              : triangle
-          )
-        );
+          );
+        }
+        setDraggedShape({ shape: null, index: null });
+        setHoveredTriangles(new Set());
       }
-      setDraggedShape({ shape: null, index: null });
-      setHoveredTriangles(new Set());
     },
     [
+      gridPosition,
+      triangles,
       calculateHoveredAndValidPositions,
       draggedShape.index,
       draggedShape.shape,
@@ -224,7 +255,10 @@ const HexGridRender: React.FC = () => {
   }, [resetGame]);
 
   return (
-    <Container>
+    <Container
+      onDrop={(event) => handleDrop(event)}
+      onDragOver={(event) => handleDragOver(event)}
+    >
       <Modal open={showModal} setOpen={setShowModal}>
         <ModalContent>
           <h1>Game Over</h1>
@@ -236,7 +270,7 @@ const HexGridRender: React.FC = () => {
           Score: {score} / Best: {highScore}
         </h3>
       </ModalContent>
-      <GridContainer>
+      <GridContainer ref={gridRef}>
         {triangles.map((triangle) => {
           const { x, y, triangleHeight } = calculatePosition(
             triangle,
@@ -262,8 +296,6 @@ const HexGridRender: React.FC = () => {
               $rowIndex={triangle.row}
               $isHovering={isHovered}
               onClick={() => handleTriangleClick(triangle)}
-              onDrop={(event) => handleDrop(event, triangle)}
-              onDragOver={(event) => handleDragOver(event, triangle)}
               onDragLeave={handleDragLeave}
             />
           );
