@@ -55,10 +55,10 @@ const ShapeRenderer: React.FC<ShapeRendererProps> = ({
             $size={trianglesShapeSize}
             $triangleHeight={triangleHeight}
             $isUp={isUp}
-            $isActive={index === 0}
+            $color={triangle.color}
             $zIndex={zIndex}
             $rowIndex={triangle.row}
-            $isHovering={index !== 0}
+            $isHovering={triangle.color || null}
             onClick={() => {}}
           />
         );

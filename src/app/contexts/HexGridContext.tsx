@@ -66,7 +66,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
         const triangle = {
           row,
           col,
-          isActive: false,
+          color: null,
           neighborhoodX: null,
           neighborhoodY: null,
           neighborhoodZ: null,
@@ -122,7 +122,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
           const triangle: TriangleState = {
             row,
             col,
-            isActive: false,
+            color: null,
             neighborhoodX: null,
             neighborhoodY: null,
             neighborhoodZ: null,
@@ -150,7 +150,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const triangleActivations = JSON.stringify(
-    triangles.map(({ isActive }) => isActive)
+    triangles.map(({ color }) => color != null)
   );
 
   useEffect(() => {
@@ -163,11 +163,10 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
           (lineTriangle) =>
             lineTriangle?.row === t?.row && lineTriangle?.col === t?.col
         )
-          ? { ...t, isActive: false }
+          ? { ...t, color: null }
           : t
       )
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triangleActivations]);
 
   useEffect(() => {

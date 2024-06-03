@@ -6,8 +6,8 @@ export const Triangle = styled.div<{
   $size: number;
   $triangleHeight: number;
   $isUp: boolean;
-  $isActive: boolean;
-  $isHovering: boolean;
+  $color?: string | null;
+  $isHovering?: string | null;
   $zIndex: number;
   $rowIndex: number;
 }>`
@@ -15,21 +15,22 @@ export const Triangle = styled.div<{
   width: 0;
   height: 0;
   left: ${({ $x }) => $x}px;
-  top: ${({ $y, $rowIndex }) => $y + $rowIndex * 5}px;
+  top: ${({ $y, $rowIndex }) => $y + $rowIndex * 4}px;
   z-index: ${({ $zIndex }) => $zIndex};
   pointer-events: auto;
-  border-left: ${({ $size }) => $size / 2 - 4}px solid transparent;
-  border-right: ${({ $size }) => $size / 2 - 4}px solid transparent;
-  ${({ $isUp, $triangleHeight, $isActive, $isHovering }) =>
+  border-radius: 5%;
+  border-left: ${({ $size }) => $size / 2 - 3}px solid transparent;
+  border-right: ${({ $size }) => $size / 2 - 3}px solid transparent;
+  ${({ $isUp, $triangleHeight, $color, $isHovering }) =>
     $isUp
       ? `
     border-bottom: ${$triangleHeight}px solid ${
-          $isHovering ? "yellow" : $isActive ? "green" : "red"
+          $isHovering ? $isHovering : $color || "gray"
         };
   `
       : `
     border-top: ${$triangleHeight}px solid ${
-          $isHovering ? "yellow" : $isActive ? "green" : "red"
+          $isHovering ? $isHovering : $color || "gray"
         };
   `}
 `;

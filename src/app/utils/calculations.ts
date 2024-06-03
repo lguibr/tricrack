@@ -1,4 +1,9 @@
-import { colsPerRowGrid, colsPerRowShape, rowsOnGrid } from "./constants";
+import {
+  colors,
+  colsPerRowGrid,
+  colsPerRowShape,
+  rowsOnGrid,
+} from "./constants";
 import { TriangleState } from "./types";
 
 export const calculatePosition = (
@@ -186,7 +191,7 @@ const getDiagonalLineActive = (
   return line;
 };
 const isTriangleActive = (triangle: TriangleState | null) =>
-  triangle == null || triangle?.isActive;
+  triangle == null || triangle?.color != null;
 
 export const checkLineCollapse = (
   triangles: TriangleState[]
@@ -279,7 +284,7 @@ export const getNeighbors = (
 
 export const buildNewShape = (): TriangleState[] => {
   const shapeSize = getRandomNumber(1, 6);
-
+  const color = getRandomColor();
   const newShape: TriangleState[] = [];
   const visited = new Set<string>();
 
@@ -289,7 +294,7 @@ export const buildNewShape = (): TriangleState[] => {
   const initialTriangle: TriangleState = {
     row: initialRow,
     col: initialCol,
-    isActive: true,
+    color,
     neighborhoodX: null,
     neighborhoodY: null,
     neighborhoodZ: null,
@@ -334,7 +339,7 @@ export const buildNewShape = (): TriangleState[] => {
         const newTriangle: TriangleState = {
           row: newRow,
           col: newCol,
-          isActive: true,
+          color,
           neighborhoodX: null,
           neighborhoodY: null,
           neighborhoodZ: null,
@@ -360,4 +365,9 @@ export const buildNewShape = (): TriangleState[] => {
   }
 
   return newShape;
+};
+
+export const getRandomColor = () => {
+  const colorIndex = getRandomNumber(0, colors.length - 1);
+  return colors[colorIndex];
 };

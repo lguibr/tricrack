@@ -335,7 +335,7 @@ let DragDropTouch;
   }());
   DragDropTouch._instance = new DragDropTouch();
   DragDropTouch._THRESHOLD = 5;
-  DragDropTouch._OPACITY = 0.5;
+  DragDropTouch._OPACITY = 0.25;
   DragDropTouch._DBLCLICK = 500;
   DragDropTouch._CTXMENU = 900;
   DragDropTouch._ISPRESSHOLDMODE = false;
