@@ -40,6 +40,7 @@ const HexGridRender: React.FC = () => {
     setShape,
     resetGame,
     addToScore,
+    undo,
   } = useHexGrid();
   const [draggedShape, setDraggedShape] = useState<{
     shape: TriangleState[] | null;
@@ -49,7 +50,7 @@ const HexGridRender: React.FC = () => {
   const gridRef = useRef<HTMLDivElement>(null);
   const gridPosition = gridRef.current?.getBoundingClientRect();
 
-  const motionOffset = triangleSizeGrid / 4;
+  const motionOffset = triangleSizeGrid / 5;
 
   const offsets = useMemo(
     () => [
@@ -76,8 +77,8 @@ const HexGridRender: React.FC = () => {
       [-2 * motionOffset, -motionOffset],
       [2 * motionOffset, 2 * motionOffset],
       [2 * motionOffset, -2 * motionOffset],
-      [2 * -motionOffset, 2 * motionOffset],
-      [2 * -motionOffset, -2 * motionOffset],
+      [-2 * -motionOffset, 2 * motionOffset],
+      [-2 * -motionOffset, -2 * motionOffset],
     ],
     [motionOffset]
   );
@@ -169,6 +170,7 @@ const HexGridRender: React.FC = () => {
 
   useEffect(() => {
     if (
+      shapes &&
       shapes.flat().length !== 0 &&
       shapes
         .filter((shape) => shape.length > 0)
@@ -297,6 +299,11 @@ const HexGridRender: React.FC = () => {
     resetGame();
   }, [resetGame]);
 
+  const undoLastMove = useCallback(() => {
+    setShowModal(false);
+    undo();
+  }, [undo]);
+
   return (
     <Container
       onDrop={(event) => handleDrop(event)}
@@ -316,11 +323,52 @@ const HexGridRender: React.FC = () => {
             height={150}
           />
           <h1>Game Over</h1>
-          <Button onClick={() => reset()}>Restart</Button>
+          <ModalButtons>
+            <Image
+              src="/restart.png"
+              alt="restart game"
+              width={50}
+              height={50}
+              onClick={() => reset()}
+              style={{ cursor: "pointer" }}
+            />
+
+            <Image
+              src="/undo.png"
+              alt="undo movement"
+              width={50}
+              height={50}
+              style={{ cursor: "pointer" }}
+              onClick={() => undoLastMove()}
+            />
+          </ModalButtons>
         </ModalContent>
       </Modal>
       <Content>
-        <Image src="/favicon.png" alt="Logo Tricrack" width={75} height={75} />
+        <Header>
+          <Image
+            src="/restart.png"
+            alt="restart game"
+            width={50}
+            height={50}
+            onClick={() => reset()}
+            style={{ cursor: "pointer" }}
+          />
+          <Image
+            src="/favicon.png"
+            alt="Logo Tricrack"
+            width={100}
+            height={100}
+          />
+          <Image
+            src="/undo.png"
+            alt="undo movement"
+            width={50}
+            height={50}
+            style={{ cursor: "pointer" }}
+            onClick={() => undo()}
+          />
+        </Header>
 
         <Score>
           <h2>▶️</h2>
@@ -360,7 +408,7 @@ const HexGridRender: React.FC = () => {
         })}
       </GridContainer>
       <OptionsContainer>
-        {shapes.map((shape, index) => (
+        {shapes?.map((shape, index) => (
           <Option key={index}>
             <ShapeRenderer
               shape={shape}
@@ -404,6 +452,14 @@ const OptionsContainer = styled.div`
   align-items: center;
 `;
 
+const Header = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+`;
+
 const Option = styled.div`
   display: flex;
   justify-content: center;
@@ -415,6 +471,7 @@ const Option = styled.div`
 
 const Content = styled.div`
   display: flex;
+  width: 100%;
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -444,6 +501,7 @@ const Score = styled.div`
   align-items: center;
   justify-content: center;
   text-align: center;
+  width: 100%;
 `;
 
 const CurrentScore = styled.h1`
@@ -451,4 +509,10 @@ const CurrentScore = styled.h1`
 `;
 const BestScore = styled.h1`
   color: ${colors[0]};
+`;
+
+const ModalButtons = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 `;
