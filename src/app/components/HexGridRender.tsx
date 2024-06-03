@@ -56,12 +56,12 @@ const HexGridRender: React.FC = () => {
       [0, 0],
       [0, -motionOffset],
       [0, motionOffset],
-      [-motionOffset, 0],
-      [motionOffset, 0],
-      [-motionOffset, -motionOffset],
-      [-motionOffset, motionOffset],
-      [motionOffset, -motionOffset],
-      [motionOffset, motionOffset],
+      // [-motionOffset, 0],
+      // [motionOffset, 0],
+      // [-motionOffset, -motionOffset],
+      // [-motionOffset, motionOffset],
+      // [motionOffset, -motionOffset],
+      // [motionOffset, motionOffset],
     ],
     [motionOffset]
   );
@@ -71,19 +71,19 @@ const HexGridRender: React.FC = () => {
     new Set()
   );
 
-  const handleTriangleClick = useCallback(
-    (triangle: TriangleState) => {
-      const color = getRandomColor();
-      setTriangles((prevTriangles) =>
-        prevTriangles.map((t) =>
-          t.row === triangle.row && t.col === triangle.col
-            ? { ...t, color: t.color ? null : color }
-            : t
-        )
-      );
-    },
-    [setTriangles]
-  );
+  // const handleTriangleClick = useCallback(
+  //   (triangle: TriangleState) => {
+  //     const color = getRandomColor();
+  //     setTriangles((prevTriangles) =>
+  //       prevTriangles.map((t) =>
+  //         t.row === triangle.row && t.col === triangle.col
+  //           ? { ...t, color: t.color ? null : color }
+  //           : t
+  //       )
+  //     );
+  //   },
+  //   [setTriangles]
+  // );
 
   const calculateHoveredAndValidPositions = useCallback(
     (
@@ -337,7 +337,7 @@ const HexGridRender: React.FC = () => {
               $color={triangle.color || null}
               $zIndex={zIndex}
               $rowIndex={triangle.row}
-              onClick={() => handleTriangleClick(triangle)}
+              // onClick={() => handleTriangleClick(triangle)}
               $isHovering={isHovered ? draggedShape.shape?.[0].color : null}
             />
           );
@@ -402,12 +402,14 @@ const Content = styled.div`
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 1rem;
 `;
 
 const ModalContent = styled(Content)`
   border-radius: 8px;
   border: 1px solid #222;
+  gap: 1rem;
+  padding: 1rem;
+  padding-top: 0rem;
 `;
 
 const Button = styled.button`
