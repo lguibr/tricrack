@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+} from "react";
 import { TriangleState } from "../utils/types";
 import {
   colsPerRowGrid,
@@ -226,19 +232,21 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const undo = () => {
+  const undo = useCallback(() => {
+    console.log("undoing");
+
     if (historyTriangles.length > 1 && historyShapes.length > 1) {
       let scoreOffset = 1;
+      console.log({ historyTriangles, historyShapes, historyScores });
+
       setHistoryTriangles((prev) => {
         const previousLastTriangles = prev[prev.length - 2];
         const collapsedTriangles = checkLineCollapse(previousLastTriangles);
-        console.log({ collapsedTriangles });
 
         if (collapsedTriangles.length > 0) {
-          console.log("undoing line collapse");
+          console.log("handling with line");
 
           scoreOffset = 2;
-
           return prev.slice(0, -2);
         }
         return prev.slice(0, -1);
@@ -251,12 +259,11 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
 
         return newPrev.slice(0, -1);
       });
-      setHistoryScores((prev) => prev.slice(0, -scoreOffset));
-      console.log({ scoreOffset });
-    }
-  };
 
-  console.log({ historyShapes, historyTriangles, historyScores });
+      setHistoryScores((prev) => prev.slice(0, -scoreOffset));
+    }
+  }, [historyShapes, historyScores, historyTriangles]);
+  console.log({ historyTriangles, historyShapes, historyScores });
 
   return (
     <HexGridContext.Provider

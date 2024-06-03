@@ -1,5 +1,6 @@
 "use client";
 import React, {
+  MouseEventHandler,
   useCallback,
   useEffect,
   useMemo,
@@ -83,24 +84,24 @@ const HexGridRender: React.FC = () => {
     [motionOffset]
   );
   const [showModal, setShowModal] = useState(false);
-
   const [hoveredTriangles, setHoveredTriangles] = useState<Set<string>>(
     new Set()
   );
 
-  // const handleTriangleClick = useCallback(
-  //   (triangle: TriangleState) => {
-  //     const color = getRandomColor();
-  //     setTriangles((prevTriangles) =>
-  //       prevTriangles.map((t) =>
-  //         t.row === triangle.row && t.col === triangle.col
-  //           ? { ...t, color: t.color ? null : color }
-  //           : t
-  //       )
-  //     );
-  //   },
-  //   [setTriangles]
-  // );
+  const [touchHandled, setTouchHandled] = useState(false);
+
+  const handleTouchStart = () => {
+    setTouchHandled(true);
+  };
+
+  const handleClick =
+    (callback: (e: MouseEvent) => void) => (e: MouseEvent) => {
+      if (touchHandled) {
+        setTouchHandled(false);
+        return;
+      }
+      callback(e);
+    };
 
   const calculateHoveredAndValidPositions = useCallback(
     (
@@ -300,6 +301,8 @@ const HexGridRender: React.FC = () => {
   }, [resetGame]);
 
   const undoLastMove = useCallback(() => {
+    console.log("undo");
+
     setShowModal(false);
     undo();
   }, [undo]);
@@ -329,7 +332,13 @@ const HexGridRender: React.FC = () => {
               alt="restart game"
               width={50}
               height={50}
-              onClick={() => reset()}
+              onClick={
+                handleClick((e) => {
+                  e.preventDefault();
+                  reset();
+                }) as unknown as MouseEventHandler
+              }
+              onTouchStart={handleTouchStart}
               style={{ cursor: "pointer" }}
             />
 
@@ -339,7 +348,13 @@ const HexGridRender: React.FC = () => {
               width={50}
               height={50}
               style={{ cursor: "pointer" }}
-              onClick={() => undoLastMove()}
+              onClick={
+                handleClick((e) => {
+                  e.preventDefault();
+                  undoLastMove();
+                }) as unknown as MouseEventHandler
+              }
+              onTouchStart={handleTouchStart}
             />
           </ModalButtons>
         </ModalContent>
@@ -351,7 +366,13 @@ const HexGridRender: React.FC = () => {
             alt="restart game"
             width={50}
             height={50}
-            onClick={() => reset()}
+            onClick={
+              handleClick((e) => {
+                e.preventDefault();
+                reset();
+              }) as unknown as MouseEventHandler
+            }
+            onTouchStart={handleTouchStart}
             style={{ cursor: "pointer" }}
           />
           <Image
@@ -366,7 +387,14 @@ const HexGridRender: React.FC = () => {
             width={50}
             height={50}
             style={{ cursor: "pointer" }}
-            onClick={() => undo()}
+            onClick={
+              handleClick((e) => {
+                e.preventDefault();
+                console.log("undo clicked");
+                undo();
+              }) as unknown as MouseEventHandler
+            }
+            onTouchStart={handleTouchStart}
           />
         </Header>
 
