@@ -52,7 +52,8 @@ export default function MyApp({ Component, pageProps }: AppProps) {
       <meta name="theme-color" content="#000" />
       <meta name="twitter:card" content="summary" />
       <meta name="twitter:url" content="https://tricrack.luisguilher.me" />
-      <meta name="twitter:title" content="tricrack 0.1" />
+      <meta name="title" content="Tricrack" />
+      <meta name="twitter:title" content="Tricrack" />
       <meta name="twitter:description" content="Tricrack" />
       <meta
         name="twitter:image"

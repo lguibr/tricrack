@@ -28,43 +28,6 @@ import ShapeRenderer from "./ShapeRenderer";
 import Modal from "./Modal";
 import Image from "next/image";
 
-const Container = styled.div`
-  display: grid;
-  position: relative;
-  width: 100vw;
-  max-width: 100vw;
-  height: 100vh;
-  max-height: 100vh;
-  box-sizing: border-box;
-  justify-content: center;
-  align-items: center;
-`;
-
-const GridContainer = styled.div`
-  position: relative;
-  width: ${gridSize}px;
-  height: ${gridSize}px;
-`;
-
-const OptionsContainer = styled.div`
-  position: relative;
-  width: 50%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  justify-content: space-around;
-  align-items: center;
-`;
-
-const Option = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-  height: 100%;
-  cursor: pointer;
-`;
-
 const offSetY = 0;
 
 const HexGridRender: React.FC = () => {
@@ -102,7 +65,7 @@ const HexGridRender: React.FC = () => {
     ],
     [motionOffset]
   );
-  const [showModal, setShowModal] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
   const [hoveredTriangles, setHoveredTriangles] = useState<Set<string>>(
     new Set()
@@ -396,12 +359,49 @@ const HexGridRender: React.FC = () => {
 
 export default HexGridRender;
 
+const Container = styled.div`
+  display: grid;
+  position: relative;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
+  justify-items: center;
+`;
+
+const GridContainer = styled.div`
+  position: relative;
+  height: ${gridSize}px;
+  width: ${gridSize}px;
+`;
+
+const OptionsContainer = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  justify-content: space-around;
+  align-items: center;
+`;
+
+const Option = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  height: 100%;
+  cursor: pointer;
+`;
+
 const Content = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
   padding: 1rem;
 `;
 
