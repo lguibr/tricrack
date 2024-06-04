@@ -111,7 +111,6 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
       const emptyShapes = !flattedShapes || flattedShapes?.length === 0;
       if (emptyShapes) {
         const newShapes = Array.from({ length: 3 }, () => buildNewShape());
-        console.log("setting new shapes");
 
         setHistoryShapes((prev) => {
           const newPrev = prev.filter(
@@ -135,8 +134,6 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const initializeTriangles = () => {
-      console.log("initializing triangles");
-
       const triangleStates: TriangleState[] = [];
 
       for (let row = 0; row < rowsOnGrid; row++) {
@@ -179,8 +176,6 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   useEffect(() => {
-    console.log("checking line collapse");
-
     const lineTriangles = checkLineCollapse(
       historyTriangles[historyTriangles.length - 1]
     );
@@ -220,8 +215,6 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   const setTriangles = (
     action: (prevTriangles: TriangleState[]) => TriangleState[]
   ) => {
-    console.log("setting triangles");
-
     setHistoryTriangles((prev) => {
       const lastTriangles = prev[prev.length - 1];
       const newTriangles = action(lastTriangles);
@@ -233,19 +226,14 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const undo = useCallback(() => {
-    console.log("undoing");
-
     if (historyTriangles.length > 1 && historyShapes.length > 1) {
       let scoreOffset = 1;
-      console.log({ historyTriangles, historyShapes, historyScores });
 
       setHistoryTriangles((prev) => {
         const previousLastTriangles = prev[prev.length - 2];
         const collapsedTriangles = checkLineCollapse(previousLastTriangles);
 
         if (collapsedTriangles.length > 0) {
-          console.log("handling with line");
-
           scoreOffset = 2;
           return prev.slice(0, -2);
         }
@@ -262,8 +250,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setHistoryScores((prev) => prev.slice(0, -scoreOffset));
     }
-  }, [historyShapes, historyScores, historyTriangles]);
-  console.log({ historyTriangles, historyShapes, historyScores });
+  }, [historyShapes, historyTriangles]);
 
   return (
     <HexGridContext.Provider

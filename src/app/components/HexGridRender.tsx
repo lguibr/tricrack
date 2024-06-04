@@ -11,8 +11,11 @@ import { useHexGrid } from "../contexts/HexGridContext";
 import {
   calculatePosition,
   calculateRowCol,
+  ensureMinimumLength,
   getRandomColor,
+  getTriangleCoreData,
   isTriangleUp,
+  removeDuplicatedTrianglesByColAndRow,
 } from "../utils/calculations";
 import {
   colsPerRowGrid,
@@ -111,6 +114,7 @@ const HexGridRender: React.FC = () => {
       shape: TriangleState[] | null = draggedShape.shape
     ) => {
       event?.preventDefault();
+
       if (!shape) return;
 
       const firstTriangle = shape[0];
@@ -130,6 +134,7 @@ const HexGridRender: React.FC = () => {
           { row: targetRow, col: targetCol },
           colsPerRowGrid
         );
+
         const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
 
         const validPosition =
@@ -169,6 +174,55 @@ const HexGridRender: React.FC = () => {
     [calculateHoveredAndValidPositions, triangles]
   );
 
+  const getValidPositionsByShapes = useCallback(() => {
+    const validPositions = shapes?.map((shape) => {
+      const positions: { row: number; col: number }[] = [];
+      triangles.forEach((triangle) => {
+        const { validPositions } =
+          calculateHoveredAndValidPositions(null, triangle, true, shape) ?? {};
+        if (validPositions) {
+          positions.push(...validPositions);
+        }
+      });
+      return removeDuplicatedTrianglesByColAndRow(positions);
+    });
+    return validPositions;
+  }, [calculateHoveredAndValidPositions, shapes, triangles]);
+
+  const gameState = {
+    validPositionByShape: getValidPositionsByShapes(),
+    shapes,
+    triangles,
+    score,
+  };
+
+  const getFlattedGameState = (state: typeof gameState) => {
+    const flattedShapes = state.shapes?.map((shape) =>
+      ensureMinimumLength(shape.map(getTriangleCoreData) || [], 6)
+    );
+    const getValidPositionsByShapes = state.validPositionByShape
+      ? Object.fromEntries(
+          Object.entries(state.validPositionByShape).map(
+            ([index, positions]) => [
+              index,
+              ensureMinimumLength(positions || [], 96),
+            ]
+          )
+        )
+      : [];
+    return {
+      ...state,
+      triangles: state.triangles.map(getTriangleCoreData),
+      shapes: flattedShapes,
+      validPositionByShape: getValidPositionsByShapes,
+    };
+  };
+  console.log(gameState);
+  console.log(getFlattedGameState(gameState));
+  console.log({
+    stringfied: JSON.stringify(getFlattedGameState(gameState), null, 2),
+  });
+
   useEffect(() => {
     if (
       shapes &&
@@ -177,7 +231,6 @@ const HexGridRender: React.FC = () => {
         .filter((shape) => shape.length > 0)
         .every((shape) => !canPlaceAnyShape(shape))
     ) {
-      console.log("game over");
       setShowModal(true);
     }
   }, [canPlaceAnyShape, shapes]); // This effect checks whenever shapes array changes
@@ -227,7 +280,6 @@ const HexGridRender: React.FC = () => {
 
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
-      console.log("drop");
       let placed = false;
       offsets.forEach(([ox, oy]) => {
         if (placed) return;
@@ -291,6 +343,54 @@ const HexGridRender: React.FC = () => {
     ]
   );
 
+  const handleSetShapeOnTriangle = useCallback(
+    (col: number, row: number, shapeIndex: number) => {
+      const haveShapes = shapes && shapes.flat(5).length > 0;
+      if (!haveShapes) return;
+      const shape = shapes[shapeIndex];
+
+      const targetTriangle = triangles.find(
+        (t) => t.row === row && t.col === col
+      );
+
+      if (targetTriangle) {
+        const { validPositions, isValid } =
+          calculateHoveredAndValidPositions(
+            null,
+            targetTriangle,
+            true,
+            shape
+          ) ?? {};
+
+        if (isValid && shape != null && shape.length > 0) {
+          const color = shape[0].color;
+          addToScore(shape.length);
+          setTriangles((prevTriangles) =>
+            prevTriangles.map((triangle) =>
+              validPositions?.some(
+                (pos) => pos.row === triangle.row && pos.col === triangle.col
+              )
+                ? {
+                    ...triangle,
+                    color,
+                  }
+                : triangle
+            )
+          );
+          setShape(shapeIndex, []);
+        }
+      }
+    },
+    [
+      shapes,
+      triangles,
+      calculateHoveredAndValidPositions,
+      addToScore,
+      setTriangles,
+      setShape,
+    ]
+  );
+
   const handleDragLeave = useCallback(() => {
     setHoveredTriangles(new Set());
   }, []);
@@ -301,8 +401,6 @@ const HexGridRender: React.FC = () => {
   }, [resetGame]);
 
   const undoLastMove = useCallback(() => {
-    console.log("undo");
-
     setShowModal(false);
     undo();
   }, [undo]);
@@ -390,7 +488,6 @@ const HexGridRender: React.FC = () => {
             onClick={
               handleClick((e) => {
                 e.preventDefault();
-                console.log("undo clicked");
                 undo();
               }) as unknown as MouseEventHandler
             }
@@ -445,6 +542,13 @@ const HexGridRender: React.FC = () => {
           </Option>
         ))}
       </OptionsContainer>
+      <button
+        onClick={() => {
+          handleSetShapeOnTriangle(3, 3, 0);
+        }}
+      >
+        add shape
+      </button>
     </Container>
   );
 };

@@ -244,10 +244,14 @@ export const checkLineCollapse = (
   return collapsedUniqueTriangles;
 };
 
-const removeDuplicatedTrianglesByColAndRow = (triangles: TriangleState[]) => {
-  const triangleMap = new Map<string, TriangleState>();
+export const removeDuplicatedTrianglesByColAndRow = <
+  T extends { col: number; row: number }
+>(
+  triangles: T[]
+): T[] => {
+  const triangleMap = new Map<string, T>();
 
-  triangles.forEach((triangle) => {
+  triangles.forEach((triangle: T) => {
     const key = `${triangle?.row}-${triangle?.col}`;
     triangleMap.set(key, triangle);
   });
@@ -370,4 +374,30 @@ export const buildNewShape = (): TriangleState[] => {
 export const getRandomColor = () => {
   const colorIndex = getRandomNumber(0, colors.length - 1);
   return colors[colorIndex];
+};
+
+export function ensureMinimumLength<T>(
+  items: T[],
+  minEntities: number
+): (T | null)[] {
+  if (!items || items.length === 0) return Array(minEntities).fill(null);
+
+  if (items.length >= minEntities) {
+    return items;
+  }
+
+  // Calculate the number of nulls needed to meet the minimum length
+  const nullsNeeded = minEntities - items.length;
+
+  // Create an array of nulls of the required length
+  const nullArray = Array(nullsNeeded).fill(null);
+
+  // Concatenate the original items with the array of nulls
+  return [...items, ...nullArray];
+}
+
+export const getTriangleCoreData = (triangle: TriangleState) => {
+  if (triangle == null) return null;
+  const { row, col, color } = triangle;
+  return { row, col, active: color != null };
 };
