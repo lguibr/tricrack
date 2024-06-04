@@ -120,7 +120,7 @@ export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
           return [...newPrev, newShapes];
         });
       }
-    }, 500);
+    }, 100);
     return () => clearTimeout(debounce);
   }, [historyShapes]);
 
