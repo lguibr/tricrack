@@ -1,10 +1,12 @@
+import * as tf from "@tensorflow/tfjs";
+
 import {
   colors,
   colsPerRowGrid,
   colsPerRowShape,
   rowsOnGrid,
 } from "./constants";
-import { TriangleState } from "./types";
+import { GameState, TriangleState } from "./types";
 
 export const calculatePosition = (
   triangle: TriangleState,
@@ -378,9 +380,11 @@ export const getRandomColor = () => {
 
 export function ensureMinimumLength<T>(
   items: T[],
-  minEntities: number
+  minEntities: number,
+  placeholder?: T | null | undefined | T[] | undefined[] | null[]
 ): (T | null)[] {
-  if (!items || items.length === 0) return Array(minEntities).fill(null);
+  if (!items || items.length === 0)
+    return Array(minEntities).fill(placeholder || null);
 
   if (items.length >= minEntities) {
     return items;
@@ -400,4 +404,23 @@ export const getTriangleCoreData = (triangle: TriangleState) => {
   if (triangle == null) return null;
   const { row, col, color } = triangle;
   return { row, col, active: color != null };
+};
+
+export const getTriangleMinimalData = (triangle: TriangleState) => {
+  return triangle.color !== undefined ? 1 : 0;
+};
+
+export const getCoordinates = (triangle: TriangleState): [number, number] => {
+  const { row, col } = triangle;
+  return [col || -1, row || -1];
+};
+
+export const gameStateToTensor = (gameState: GameState): tf.Tensor => {
+  const flattedArray = [
+    ...gameState.shapes.flat(5),
+    ...gameState.triangles,
+    gameState.score,
+  ];
+
+  return tf.tensor(flattedArray);
 };

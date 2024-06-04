@@ -1,3 +1,5 @@
+// src/app/components/HexGridRender.tsx
+
 "use client";
 import React, {
   MouseEventHandler,
@@ -12,8 +14,8 @@ import {
   calculatePosition,
   calculateRowCol,
   ensureMinimumLength,
-  getRandomColor,
-  getTriangleCoreData,
+  getCoordinates,
+  getTriangleMinimalData,
   isTriangleUp,
   removeDuplicatedTrianglesByColAndRow,
 } from "../utils/calculations";
@@ -25,12 +27,13 @@ import {
   gridPadding,
   colors,
 } from "../utils/constants";
-import { TriangleState } from "../utils/types";
+import { GameState, TriangleState } from "../utils/types";
 import styled from "styled-components";
 import { Triangle } from "./Triangle";
 import ShapeRenderer from "./ShapeRenderer";
 import Modal from "./Modal";
 import Image from "next/image";
+import GameTrainer from "./GameTrainer";
 
 const offSetY = 0;
 
@@ -196,32 +199,24 @@ const HexGridRender: React.FC = () => {
     score,
   };
 
-  const getFlattedGameState = (state: typeof gameState) => {
-    const flattedShapes = state.shapes?.map((shape) =>
-      ensureMinimumLength(shape.map(getTriangleCoreData) || [], 6)
-    );
-    const getValidPositionsByShapes = state.validPositionByShape
-      ? Object.fromEntries(
-          Object.entries(state.validPositionByShape).map(
-            ([index, positions]) => [
-              index,
-              ensureMinimumLength(positions || [], 96),
-            ]
-          )
+  const getColRowByIndex = (index: number): [number?, number?] => {
+    const triangle = triangles.find((triangle, i) => i === index);
+    return [triangle?.col, triangle?.row];
+  };
+
+  const getFlattedGameState = (state: typeof gameState): GameState => {
+    const flattedShapes: [number, number][][] = state.shapes
+      ? state.shapes?.map((shape) =>
+          shape.map((triangle) => getCoordinates(triangle))
         )
       : [];
+
     return {
-      ...state,
-      triangles: state.triangles.map(getTriangleCoreData),
+      triangles: state.triangles.map(getTriangleMinimalData),
       shapes: flattedShapes,
-      validPositionByShape: getValidPositionsByShapes,
+      score,
     };
   };
-  console.log(gameState);
-  console.log(getFlattedGameState(gameState));
-  console.log({
-    stringfied: JSON.stringify(getFlattedGameState(gameState), null, 2),
-  });
 
   useEffect(() => {
     if (
@@ -549,6 +544,13 @@ const HexGridRender: React.FC = () => {
       >
         add shape
       </button>
+      <GameTrainer
+        resetGame={resetGame}
+        getState={() => getFlattedGameState(gameState)}
+        handleSetShapeOnTriangle={handleSetShapeOnTriangle}
+        getColRowByIndex={getColRowByIndex}
+        isGameOver={() => showModal}
+      />
     </Container>
   );
 };
