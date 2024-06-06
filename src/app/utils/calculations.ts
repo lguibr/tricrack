@@ -400,27 +400,38 @@ export function ensureMinimumLength<T>(
   return [...items, ...nullArray];
 }
 
-export const getTriangleCoreData = (triangle: TriangleState) => {
-  if (triangle == null) return null;
-  const { row, col, color } = triangle;
-  return { row, col, active: color != null };
-};
-
 export const getTriangleMinimalData = (triangle: TriangleState) => {
-  return triangle.color !== undefined ? 1 : 0;
+  return triangle.color != null ? 1 : 0;
 };
 
-export const getCoordinates = (triangle: TriangleState): [number, number] => {
-  const { row, col } = triangle;
-  return [col || -1, row || -1];
-};
+export const gameStateToTensor = (
+  gameState: GameState,
+  shape: number[] = [1, 133]
+): tf.Tensor => {
+  const emptyShape: [number, number][] = Array.from({ length: 6 }, () => [
+    undefined,
+    undefined,
+  ]);
 
-export const gameStateToTensor = (gameState: GameState): tf.Tensor => {
+  const parsedShapes = (
+    gameState.shapes && gameState.shapes.length > 0
+      ? gameState.shapes
+      : [[], [], []]
+  ).map((shape) => {
+    return emptyShape.map(([x, y], index) => {
+      return shape[index] ? shape[index] : [x, y];
+    });
+  });
+
+  const flattedParsedShapes = parsedShapes.flat(3);
+
   const flattedArray = [
-    ...gameState.shapes.flat(5),
+    ...flattedParsedShapes,
     ...gameState.triangles,
-    gameState.score,
+    gameState.score || 0,
   ];
 
-  return tf.tensor(flattedArray);
+  console.log(flattedArray, flattedArray);
+
+  return tf.tensor(flattedArray, shape);
 };

@@ -41,7 +41,7 @@ export class DQNAgent {
     const model = tf.sequential();
     model.add(
       tf.layers.dense({
-        inputShape: [this.stateSize],
+        inputShape: [1, this.stateSize],
         units: 128,
         activation: "relu",
       })
@@ -92,7 +92,9 @@ export class DQNAgent {
           : this.gamma *
             Math.max(
               ...Array.from(
-                (this.model.predict(gameStateToTensor(nextState)) as tf.Tensor).dataSync()
+                (
+                  this.model.predict(gameStateToTensor(nextState)) as tf.Tensor
+                ).dataSync()
               )
             ));
       const targetF = this.model.predict(gameStateToTensor(state)) as tf.Tensor;

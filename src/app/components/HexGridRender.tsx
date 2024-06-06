@@ -13,8 +13,6 @@ import { useHexGrid } from "../contexts/HexGridContext";
 import {
   calculatePosition,
   calculateRowCol,
-  ensureMinimumLength,
-  getCoordinates,
   getTriangleMinimalData,
   isTriangleUp,
   removeDuplicatedTrianglesByColAndRow,
@@ -207,7 +205,7 @@ const HexGridRender: React.FC = () => {
   const getFlattedGameState = (state: typeof gameState): GameState => {
     const flattedShapes: [number, number][][] = state.shapes
       ? state.shapes?.map((shape) =>
-          shape.map((triangle) => getCoordinates(triangle))
+          shape.map((triangle) => [triangle.row, triangle.col])
         )
       : [];
 
@@ -236,6 +234,8 @@ const HexGridRender: React.FC = () => {
     },
     []
   );
+  console.log("original shapes");
+  console.log(shapes);
 
   const handleDragOver = useCallback(
     (event: React.DragEvent) => {
@@ -340,6 +340,8 @@ const HexGridRender: React.FC = () => {
 
   const handleSetShapeOnTriangle = useCallback(
     (col: number, row: number, shapeIndex: number) => {
+      console.log("setting shape on triangle");
+
       const haveShapes = shapes && shapes.flat(5).length > 0;
       if (!haveShapes) return;
       const shape = shapes[shapeIndex];
@@ -356,6 +358,7 @@ const HexGridRender: React.FC = () => {
             true,
             shape
           ) ?? {};
+        console.log(`shape is valid: ${isValid}`);
 
         if (isValid && shape != null && shape.length > 0) {
           const color = shape[0].color;

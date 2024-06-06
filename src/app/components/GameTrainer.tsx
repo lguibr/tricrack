@@ -30,18 +30,23 @@ const GameTrainer: React.FC<Game> = ({
     setAgent(dqnAgent);
 
     const trainAgent = async () => {
+      debugger;
       for (let episode = 0; episode < 1000; episode++) {
         let state = environment.reset();
         let done = false;
         console.log(`Episode ${episode + 1}: Start`);
 
         while (!done) {
+          const currentMemoryLength = dqnAgent.memory.length;
+          console.log({ currentMemoryLength });
+
           const action = dqnAgent.act(state);
           const { nextState, reward, done } = environment.step(action);
+          
           dqnAgent.remember(state, action, reward, nextState, done);
           state = nextState;
 
-          if (dqnAgent.memory.length > 32) {
+          if (currentMemoryLength > 150) {
             dqnAgent.replay(32);
           }
         }
