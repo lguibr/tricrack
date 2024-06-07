@@ -15,15 +15,3 @@ export type GameState = {
   shapes: [number, number][][];
   score: number;
 };
-
-export type Game = {
-  resetGame: () => void;
-  getState: () => GameState;
-  handleSetShapeOnTriangle: (
-    col: number,
-    row: number,
-    shapeIndex: number
-  ) => void;
-  isGameOver: () => boolean;
-  getColRowByIndex: (index: number) => [number?, number?];
-};

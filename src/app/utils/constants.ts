@@ -17,6 +17,9 @@ export const maxShapeCols = Math.max(...colsPerRowShape);
 export const shapePadding = colsPerRowShape.map(
   (cols) => (maxShapeCols - cols) / 2
 );
+export const movementsBatchSize = 512;
+export const trainingEpisodes = 100;
+export const intervalToForceUpdate = 100;
 
 export const colors = [
   "#ff006e",

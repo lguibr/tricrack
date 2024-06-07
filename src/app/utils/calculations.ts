@@ -279,7 +279,7 @@ export const getNeighbors = (
           triangle.row === neighborRow && triangle.col === neighborCol
       );
     })
-    .filter((neighbor) => neighbor !== null) as TriangleState[];
+    .filter((neighbor) => neighbor !== null);
 
   return {
     X: neighbors[0] || null,
@@ -409,8 +409,7 @@ export const gameStateToTensor = (
   shape: number[] = [1, 133]
 ): tf.Tensor => {
   const emptyShape: [number, number][] = Array.from({ length: 6 }, () => [
-    undefined,
-    undefined,
+    -1, -1,
   ]);
 
   const parsedShapes = (
@@ -431,7 +430,45 @@ export const gameStateToTensor = (
     gameState.score || 0,
   ];
 
-  console.log(flattedArray, flattedArray);
-
   return tf.tensor(flattedArray, shape);
+};
+
+// Function to determine if a triangle is up (returns 1) or down (returns 0)
+const isUp = (triangle: TriangleState, rows: number[]): number => {
+  const rowLength = rows[triangle.row % rows.length];
+  return triangle.col % 2 === 0 ? 1 : 0; // This might need adjustment based on your grid specifics
+};
+
+// Function to encode the shape with detailed neighborhood and orientation
+export const encodeShape = (
+  shape: TriangleState[],
+  rows: number[]
+): number[] => {
+  return shape.flatMap((triangle, idx) => {
+    const neighborhoodIndices = [
+      shape.findIndex(
+        (t) =>
+          t.col === triangle.neighborhoodX?.col &&
+          t.row === triangle.neighborhoodX?.row
+      ),
+      shape.findIndex(
+        (t) =>
+          t.col === triangle.neighborhoodY?.col &&
+          t.row === triangle.neighborhoodY?.row
+      ),
+      shape.findIndex(
+        (t) =>
+          t.col === triangle.neighborhoodZ?.col &&
+          t.row === triangle.neighborhoodZ?.row
+      ),
+    ];
+
+    return [
+      triangle.row,
+      triangle.col, // Position
+      triangle.color ? 1 : 0, // Active or not
+      ...neighborhoodIndices.map((ni) => (ni !== -1 ? ni : -1)),
+      isUp(triangle, rows), // Orientation: up or down
+    ];
+  });
 };
