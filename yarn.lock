@@ -1242,7 +1242,15 @@
     "@types/seedrandom" "^2.4.28"
     seedrandom "^3.0.5"
 
-"@tensorflow/tfjs-backend-webgl@4.20.0":
+"@tensorflow/tfjs-backend-wasm@^4.20.0":
+  version "4.20.0"
+  resolved "https://registry.yarnpkg.com/@tensorflow/tfjs-backend-wasm/-/tfjs-backend-wasm-4.20.0.tgz#8d91998d809f63ff9fd1f943fb49d8125c0cc073"
+  integrity sha512-btfvT8SFQv4KNXS4TPWIvzHSgvBUoitfS9I5u0puK2kZaXBA9TiAnCF/2HlCIqJHif5i1qu+9i8dqiNgFwewGg==
+  dependencies:
+    "@tensorflow/tfjs-backend-cpu" "4.20.0"
+    "@types/emscripten" "~0.0.34"
+
+"@tensorflow/tfjs-backend-webgl@4.20.0", "@tensorflow/tfjs-backend-webgl@^4.20.0":
   version "4.20.0"
   resolved "https://registry.yarnpkg.com/@tensorflow/tfjs-backend-webgl/-/tfjs-backend-webgl-4.20.0.tgz#920bdda8cce920c183a48d917e34e80cea2e0c43"
   integrity sha512-M03fJonJGxm2u3SCzRNA2JLh0gxaAye64SEmGAXOehizowxy42l+lMsPWU8xU7r7mN6PEilBNkuKAf5YJ7Xumg==
@@ -1251,6 +1259,13 @@
     "@types/offscreencanvas" "~2019.3.0"
     "@types/seedrandom" "^2.4.28"
     seedrandom "^3.0.5"
+
+"@tensorflow/tfjs-backend-webgpu@^4.20.0":
+  version "4.20.0"
+  resolved "https://registry.yarnpkg.com/@tensorflow/tfjs-backend-webgpu/-/tfjs-backend-webgpu-4.20.0.tgz#02ef4d1effd8ca603ee16111a994c5574019d4d2"
+  integrity sha512-d+mooh89bl+j29T282nE+lMs2ZKQdTC+0TezdjF4DvOd/YadShUtdrvEg+uWlA3631l1egEhSy/ah8n9mcVgAg==
+  dependencies:
+    "@tensorflow/tfjs-backend-cpu" "4.20.0"
 
 "@tensorflow/tfjs-converter@4.20.0":
   version "4.20.0"
@@ -1300,6 +1315,11 @@
     core-js "3.29.1"
     regenerator-runtime "^0.13.5"
     yargs "^16.0.3"
+
+"@types/emscripten@~0.0.34":
+  version "0.0.34"
+  resolved "https://registry.yarnpkg.com/@types/emscripten/-/emscripten-0.0.34.tgz#12b4a344274fb102ff2f6c877b37587bc3e46008"
+  integrity sha512-QSb9ojDincskc+uKMI0KXp8e1NALFINCrMlp8VGKGcTSxeEyRTTKyjWw75NYrCZHUsVEEEpr1tYHpbtaC++/sQ==
 
 "@types/estree@0.0.39":
   version "0.0.39"

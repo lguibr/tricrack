@@ -1,5 +1,5 @@
 // src/utils/GameEnvironment.ts
-import * as tf from "@tensorflow/tfjs";
+import * as tfType from "@tensorflow/tfjs";
 import Game from "./Game";
 
 export class GameEnvironment {
@@ -24,7 +24,7 @@ export class GameEnvironment {
     return this.game.getTensorGameState();
   }
 
-  step(action: tf.Tensor) {
+  step(action: tfType.Tensor) {
     const [actionList] = action.toInt().arraySync() as number[][];
     const [shapeIndex, target] = actionList;
 

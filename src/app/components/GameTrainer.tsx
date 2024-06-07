@@ -5,10 +5,12 @@ import { GameEnvironment } from "../utils/GameEnvironment";
 import { DQNAgent } from "../utils/DQNAgent";
 import Game from "../utils/Game";
 import { movementsBatchSize, trainingEpisodes } from "../utils/constants";
+import * as tfType from "@tensorflow/tfjs";
 
-const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
-  const { getTensorGameState: getFlattedGameState } = game;
-
+const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
+  game,
+  tf,
+}) => {
   const agentRef = useRef<DQNAgent | null>(null);
   const gameEnvironmentRef = useRef<GameEnvironment | null>(null);
   const haveInstanciated = useRef(false);
@@ -23,7 +25,9 @@ const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
       const stateSize = game.getTensorGameState().shape[1]!;
 
       const actionSize = 96 * 3; // 96 targets * 3 shapes
-      agentRef.current = new DQNAgent(stateSize, actionSize);
+      if (tf != null) {
+        agentRef.current = new DQNAgent(stateSize, actionSize, tf);
+      }
     }
 
     const trainAgent = async () => {
@@ -77,7 +81,7 @@ const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
     };
 
     trainAgent();
-  }, []);
+  }, [game, tf]);
 
   return <div>Training the agent...</div>;
 };

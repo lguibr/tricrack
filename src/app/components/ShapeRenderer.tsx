@@ -49,7 +49,9 @@ const ShapeRenderer: React.FC<ShapeRendererProps> = ({
 
         return (
           <Triangle
-            key={`shape-triangle-${triangle.row}-${triangle.col}-${index}`}
+            key={`shape-triangle-${triangle.row}-${
+              triangle.col
+            }-${index}-shape-${Date.now()}`}
             $x={x}
             $y={y}
             $size={trianglesShapeSize}

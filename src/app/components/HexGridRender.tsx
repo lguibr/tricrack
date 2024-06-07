@@ -334,7 +334,9 @@ const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
 
           return (
             <Triangle
-              key={`grid-triangle-${triangle.row}-${triangle.col}`}
+              key={`grid-triangle-${triangle.row}-${
+                triangle.col
+              }-grid-${Date.now()}`}
               $x={x}
               $y={y}
               $size={triangleSizeGrid}

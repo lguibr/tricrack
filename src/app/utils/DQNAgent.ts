@@ -1,11 +1,11 @@
-import * as tf from "@tensorflow/tfjs";
+import * as tfType from "@tensorflow/tfjs";
 import { movementsBatchSize } from "./constants";
 
 type Memory = {
-  state: tf.Tensor;
-  action: tf.Tensor;
+  state: tfType.Tensor;
+  action: tfType.Tensor;
   reward: number;
-  nextState: tf.Tensor;
+  nextState: tfType.Tensor;
   done: boolean;
 };
 
@@ -18,14 +18,16 @@ export class DQNAgent {
   private explorationMin: number;
   private explorationDecay: number;
   private learningRate: number;
-  private model: tf.Sequential;
-  private targetModel: tf.Sequential;
+  private model: tfType.Sequential;
+  private targetModel: tfType.Sequential;
   private updateTargetNetworkFrequency: number;
   private trainStep: number;
   private totalLoss: number;
   private batchCount: number;
+  private tf: typeof tfType;
 
-  constructor(stateSize: number, actionSize: number) {
+  constructor(stateSize: number, actionSize: number, tf: typeof tfType) {
+    this.tf = tf;
     this.stateSize = stateSize;
     this.actionSize = actionSize;
     this.memory = [];
@@ -43,10 +45,10 @@ export class DQNAgent {
   }
 
   buildModel() {
-    const model = tf.sequential();
+    const model = this.tf.sequential();
 
     model.add(
-      tf.layers.dense({
+      this.tf.layers.dense({
         inputShape: [this.stateSize],
         units: this.stateSize * 3,
         activation: "relu",
@@ -54,56 +56,56 @@ export class DQNAgent {
     );
 
     model.add(
-      tf.layers.dense({ units: this.actionSize, activation: "linear" })
+      this.tf.layers.dense({ units: this.actionSize, activation: "linear" })
     );
     model.compile({
       loss: "meanSquaredError",
-      optimizer: tf.train.adam(this.learningRate),
+      optimizer: this.tf.train.adam(this.learningRate),
     });
 
     return model;
   }
 
   remember(
-    state: tf.Tensor,
-    action: tf.Tensor,
+    state: tfType.Tensor,
+    action: tfType.Tensor,
     reward: number,
-    nextState: tf.Tensor,
+    nextState: tfType.Tensor,
     done: boolean
   ) {
     this.memory.push({ state, action, reward, nextState, done });
   }
 
-  act(state: tf.Tensor): tf.Tensor {
+  act(state: tfType.Tensor): tfType.Tensor {
     const input = this.ensureInputShape(state).div(255.0); // Normalize input
 
     if (Math.random() <= this.explorationRate) {
       const randomShapeIndex = Math.floor(Math.random() * 3); // 0 to 2
       const randomTarget = Math.floor(Math.random() * 96); // 0 to 95
-      return tf.tensor([randomShapeIndex, randomTarget], [1, 2]);
+      return this.tf.tensor([randomShapeIndex, randomTarget], [1, 2]);
     } else {
-      const predictedQualityValues = this.model.predict(input) as tf.Tensor;
+      const predictedQualityValues = this.model.predict(input) as tfType.Tensor;
       const actionIndex = Array.from(
         predictedQualityValues.argMax(-1).dataSync()
       )[0];
 
       const shapeIndex = Math.floor(actionIndex / 96); // 0 to 2
       const target = actionIndex % 96; // 0 to 95
-      return tf.tensor([shapeIndex, target], [1, 2]);
+      return this.tf.tensor([shapeIndex, target], [1, 2]);
     }
   }
 
-  private ensureInputShape(tensor: tf.Tensor): tf.Tensor {
+  private ensureInputShape(tensor: tfType.Tensor): tfType.Tensor {
     const expectedShape = [1, this.stateSize];
-    if (!tf.util.arraysEqual(tensor.shape, expectedShape)) {
+    if (!this.tf.util.arraysEqual(tensor.shape, expectedShape)) {
       return tensor.reshape(expectedShape);
     }
     return tensor;
   }
 
   async replay(batchSize: number) {
-    console.log("Replaying");
-
+    console.group("Replaying");
+    const start = Date.now();
     const maxIndex = this.memory.length - 1 - batchSize;
     const randomIndex = Math.floor(Math.random() * maxIndex);
     const minibatch = this.memory.slice(randomIndex, randomIndex + batchSize);
@@ -116,7 +118,7 @@ export class DQNAgent {
 
       const predictedNextStateValues = this.targetModel.predict(
         reshapedNextState
-      ) as tf.Tensor;
+      ) as tfType.Tensor;
 
       const maxPredictedFutureQualityValue = Math.max(
         ...Array.from(predictedNextStateValues.dataSync())
@@ -127,7 +129,7 @@ export class DQNAgent {
 
       const predictedStateValues = this.model.predict(
         reshapedState
-      ) as tf.Tensor;
+      ) as tfType.Tensor;
 
       const updatedQualityValues = Array.from(predictedStateValues.dataSync());
       const [shapeIndex, targetTriangleIndex] = Array.from(action.dataSync());
@@ -135,7 +137,7 @@ export class DQNAgent {
 
       updatedQualityValues[actionIndex] = computedTargetQualityValue;
 
-      const targetTensor = tf.tensor(updatedQualityValues, [
+      const targetTensor = this.tf.tensor(updatedQualityValues, [
         1,
         this.actionSize,
       ]);
@@ -155,7 +157,7 @@ export class DQNAgent {
         },
       });
 
-      tf.dispose([
+      this.tf.dispose([
         predictedNextStateValues,
         predictedStateValues,
         targetTensor,
@@ -170,6 +172,12 @@ export class DQNAgent {
     if (this.explorationRate > this.explorationMin) {
       this.explorationRate *= this.explorationDecay;
     }
+    console.log();
+    const end = Date.now();
+    const duration = end - start;
+    console.log(duration, "ms");
+
+    console.groupEnd();
   }
 
   updateTargetNetwork() {
