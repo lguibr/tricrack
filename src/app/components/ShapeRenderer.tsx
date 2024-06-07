@@ -8,6 +8,7 @@ import {
   colsPerRowShape,
   shapePadding,
   shapeSize,
+  triangleSizeGrid,
   trianglesShapeSize,
 } from "../utils/constants";
 
@@ -48,21 +49,34 @@ const ShapeRenderer: React.FC<ShapeRendererProps> = ({
         const zIndex = colsPerRowShape[triangle.row] - triangle.col;
 
         return (
-          <Triangle
-            key={`shape-triangle-${triangle.row}-${
-              triangle.col
-            }-${index}-shape-${Date.now()}`}
-            $x={x}
-            $y={y}
-            $size={trianglesShapeSize}
-            $triangleHeight={triangleHeight}
-            $isUp={isUp}
-            $color={triangle.color}
-            $zIndex={zIndex}
-            $rowIndex={triangle.row}
-            $isHovering={triangle.color || null}
-            onClick={() => {}}
-          />
+          <>
+            <Triangle
+              key={`shape-triangle-${triangle.row}-${
+                triangle.col
+              }-${index}-shape-${Date.now()}`}
+              $x={x}
+              $y={y}
+              $size={trianglesShapeSize}
+              $triangleHeight={triangleHeight}
+              $isUp={isUp}
+              $color={triangle.color}
+              $zIndex={zIndex}
+              $rowIndex={triangle.row}
+              $isHovering={triangle.color || null}
+              onClick={() => {}}
+            ></Triangle>
+            <div
+              style={{
+                zIndex: 9999999999,
+                color: "white",
+                position: "absolute",
+                top: `${y + trianglesShapeSize / 4}px`,
+                left: `${x + trianglesShapeSize / 4}px`,
+              }}
+            >
+              {index}
+            </div>
+          </>
         );
       })}
     </ShapeContainer>

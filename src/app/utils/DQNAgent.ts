@@ -1,5 +1,14 @@
 import * as tfType from "@tensorflow/tfjs";
-import { movementsBatchSize } from "./constants";
+import {
+  learningRate,
+  movementsBatchSize,
+  normalizeUnitDivisor,
+} from "./constants";
+import { TriangleState } from "./types";
+import {
+  // getIndexesWhereShapeCanBePlaced,
+  getRandomNotEmptyShapeElementIndex,
+} from "./calculations";
 
 type Memory = {
   state: tfType.Tensor;
@@ -25,8 +34,12 @@ export class DQNAgent {
   private totalLoss: number;
   private batchCount: number;
   private tf: typeof tfType;
+  private modelName: string;
+  public averageLoss: number;
 
   constructor(stateSize: number, actionSize: number, tf: typeof tfType) {
+    this.modelName = "localstorage://DQNAgentModel";
+
     this.tf = tf;
     this.stateSize = stateSize;
     this.actionSize = actionSize;
@@ -35,26 +48,38 @@ export class DQNAgent {
     this.explorationRate = 1.0;
     this.explorationMin = 0.01;
     this.explorationDecay = 0.995;
-    this.learningRate = 0.00001;
+    this.learningRate = learningRate;
     this.model = this.buildModel();
     this.targetModel = this.buildModel();
-    this.updateTargetNetworkFrequency = movementsBatchSize / 4; // Update target network every 100 steps
+    this.updateTargetNetworkFrequency = movementsBatchSize; // Update target network every 100 steps
     this.trainStep = 0;
     this.totalLoss = 0;
     this.batchCount = 0;
+    this.averageLoss = 0;
+    this.loadModelWeights().catch((err) => {
+      console.log("No saved model found, starting with a new model.");
+    });
   }
 
   buildModel() {
     const model = this.tf.sequential();
-
+    // Input Layer
     model.add(
       this.tf.layers.dense({
         inputShape: [this.stateSize],
-        units: this.stateSize * 3,
+        units: Math.floor(this.stateSize / 2),
+
+        activation: "relu",
+      })
+    );
+    model.add(
+      this.tf.layers.dense({
+        units: Math.floor(this.stateSize / 3),
         activation: "relu",
       })
     );
 
+    // Hidden Layer
     model.add(
       this.tf.layers.dense({ units: this.actionSize, activation: "linear" })
     );
@@ -76,14 +101,45 @@ export class DQNAgent {
     this.memory.push({ state, action, reward, nextState, done });
   }
 
-  act(state: tfType.Tensor): tfType.Tensor {
-    const input = this.ensureInputShape(state).div(255.0); // Normalize input
+  act(
+    state: tfType.Tensor,
+    triangles: TriangleState[],
+    shapes: TriangleState[][]
+  ): tfType.Tensor {
+    const input = this.ensureInputShape(state).div(normalizeUnitDivisor);
 
     if (Math.random() <= this.explorationRate) {
-      const randomShapeIndex = Math.floor(Math.random() * 3); // 0 to 2
-      const randomTarget = Math.floor(Math.random() * 96); // 0 to 95
-      return this.tf.tensor([randomShapeIndex, randomTarget], [1, 2]);
+      // debugger
+      const availableShapeIndex = getRandomNotEmptyShapeElementIndex(shapes);
+      // const availableShape = shapes[availableShapeIndex];
+      // const validPositionsForAvailableShape = getIndexesWhereShapeCanBePlaced(
+      //   availableShape,
+      //   triangles
+      // );
+
+      const randomIndex = Math.floor(Math.random() * triangles.length);
+
+      // const randomValidPositionIndex = Math.floor(
+      //   Math.random() * validPositionsForAvailableShape.length
+      // );
+
+      // const validTarget =
+      //   validPositionsForAvailableShape[randomValidPositionIndex];
+
+      // console.log({
+      //   validPositionsForAvailableShape,
+      //   validTarget,
+      //   randomIndex,
+      //   availableShapeIndex,
+      // });
+
+      return this.tf.tensor(
+        [availableShapeIndex, randomIndex ?? randomIndex],
+        [1, 2]
+      );
     } else {
+      console.log("%c predicted action! ", "background: #222; color: #bada55");
+
       const predictedQualityValues = this.model.predict(input) as tfType.Tensor;
       const actionIndex = Array.from(
         predictedQualityValues.argMax(-1).dataSync()
@@ -113,8 +169,10 @@ export class DQNAgent {
     let batchLoss = 0;
 
     for (const { state, action, reward, nextState, done } of minibatch) {
-      const reshapedNextState = this.ensureInputShape(nextState).div(255.0); // Normalize input
-      const reshapedState = this.ensureInputShape(state).div(255.0); // Normalize input
+      const reshapedNextState =
+        this.ensureInputShape(nextState).div(normalizeUnitDivisor);
+      const reshapedState =
+        this.ensureInputShape(state).div(normalizeUnitDivisor);
 
       const predictedNextStateValues = this.targetModel.predict(
         reshapedNextState
@@ -151,7 +209,9 @@ export class DQNAgent {
             batchLoss += logs?.loss || 0;
             this.trainStep++;
             if (this.trainStep % this.updateTargetNetworkFrequency === 0) {
+              console.log("Updating target network");
               this.updateTargetNetwork();
+              // this.saveModelWeights();
             }
           },
         },
@@ -166,11 +226,19 @@ export class DQNAgent {
 
     this.totalLoss += batchLoss;
     this.batchCount++;
-    const averageLoss = this.totalLoss / this.batchCount;
-    console.log(`Average Loss: ${averageLoss}`);
+    const currentAverageLoss = this.totalLoss / this.batchCount;
+    const diffOfAverageLoss = this.averageLoss - currentAverageLoss;
+    console.log(
+      `%cAverage Loss: ${currentAverageLoss} \nDiffAverageLoss: ${diffOfAverageLoss} \nPreviousAverageLoss: ${this.averageLoss} \nExplorationRate ${this.explorationRate}`,
+      "background: #222; color: #ff006e"
+    );
 
+    this.averageLoss = currentAverageLoss;
     if (this.explorationRate > this.explorationMin) {
+      console.log("Decaining the exploration rate");
       this.explorationRate *= this.explorationDecay;
+    } else {
+      console.log("exploration reaches the min value");
     }
     console.log();
     const end = Date.now();
@@ -178,6 +246,22 @@ export class DQNAgent {
     console.log(duration, "ms");
 
     console.groupEnd();
+  }
+
+  async saveModelWeights() {
+    await this.model.save(this.modelName);
+    console.log(`Model saved to ${this.modelName}`);
+  }
+
+  async loadModelWeights() {
+    try {
+      const loadedModel = await this.tf.loadLayersModel(this.modelName);
+      this.model.setWeights(loadedModel.getWeights());
+      console.log(`Model weights loaded from ${this.modelName}`);
+    } catch (error) {
+      console.error("Failed to load model weights:", error);
+      throw error;
+    }
   }
 
   updateTargetNetwork() {

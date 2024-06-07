@@ -6,7 +6,7 @@ import {
   colsPerRowShape,
   rowsOnGrid,
 } from "./constants";
-import { GameState, TriangleState } from "./types";
+import { FixedLengthArray, GameState, TriangleState } from "./types";
 
 export const calculatePosition = (
   triangle: TriangleState,
@@ -82,7 +82,7 @@ const getHorizontalLineActive = (
   triangle: TriangleState,
   triangles: TriangleState[]
 ): TriangleState[] => {
-  if (!isTriangleActive(triangle)) return [];
+  if (!isTriangleActivish(triangle)) return [];
 
   let index = 0;
   let neighborTail = triangle ? triangle.neighborhoodX : null;
@@ -104,8 +104,8 @@ const getHorizontalLineActive = (
 
   while ((!!tail || !!head) && index < 100) {
     if (!tail && !head) return line;
-    const tailActive = isTriangleActive(tail);
-    const headActive = isTriangleActive(head);
+    const tailActive = isTriangleActivish(tail);
+    const headActive = isTriangleActivish(head);
 
     if (!tailActive || !headActive) {
       return [];
@@ -141,7 +141,7 @@ const getDiagonalLineActive = (
   triangles: TriangleState[],
   directions: ("neighborhoodX" | "neighborhoodY" | "neighborhoodZ")[]
 ): TriangleState[] => {
-  if (!isTriangleActive(triangle)) return [];
+  if (!isTriangleActivish(triangle)) return [];
   let index = 0;
   let neighborTail = triangle ? triangle[directions[index % 2]] : null;
   let tail =
@@ -163,8 +163,8 @@ const getDiagonalLineActive = (
   while (!!tail || !!head) {
     if (!tail && !head) return line;
 
-    const tailActive = isTriangleActive(tail);
-    const headActive = isTriangleActive(head);
+    const tailActive = isTriangleActivish(tail);
+    const headActive = isTriangleActivish(head);
 
     if (!tailActive || !headActive) return [];
 
@@ -192,7 +192,7 @@ const getDiagonalLineActive = (
 
   return line;
 };
-const isTriangleActive = (triangle: TriangleState | null) =>
+const isTriangleActivish = (triangle: TriangleState | null) =>
   triangle == null || triangle?.color != null;
 
 export const checkLineCollapse = (
@@ -404,39 +404,35 @@ export const getTriangleMinimalData = (triangle: TriangleState) => {
   return triangle.color != null ? 1 : 0;
 };
 
-export const gameStateToTensor = (
-  gameState: GameState,
-  shape: number[] = [1, 133]
-): tf.Tensor => {
-  const emptyShape: [number, number][] = Array.from({ length: 6 }, () => [
-    -1, -1,
-  ]);
-
-  const parsedShapes = (
-    gameState.shapes && gameState.shapes.length > 0
-      ? gameState.shapes
-      : [[], [], []]
-  ).map((shape) => {
-    return emptyShape.map(([x, y], index) => {
-      return shape[index] ? shape[index] : [x, y];
-    });
-  });
-
-  const flattedParsedShapes = parsedShapes.flat(3);
-
-  const flattedArray = [
-    ...flattedParsedShapes,
-    ...gameState.triangles,
-    gameState.score || 0,
-  ];
-
-  return tf.tensor(flattedArray, shape);
+const invalidTriangle: TriangleState = {
+  row: -1,
+  col: -1,
+  color: null,
+  neighborhoodX: null,
+  neighborhoodY: null,
+  neighborhoodZ: null,
 };
 
-// Function to determine if a triangle is up (returns 1) or down (returns 0)
-const isUp = (triangle: TriangleState, rows: number[]): number => {
-  const rowLength = rows[triangle.row % rows.length];
-  return triangle.col % 2 === 0 ? 1 : 0; // This might need adjustment based on your grid specifics
+export const encodeTriangle = (
+  triangle: TriangleState,
+  triangleIndex: number,
+  rows: number[]
+): FixedLengthArray<number, 5> => {
+  const isUp = isTriangleUp(triangle, rows);
+  const { col: xCol, row: xRow } = triangle.neighborhoodX ?? invalidTriangle;
+  const xIndex =
+    xCol !== -1 && xRow !== -1 ? getIndexFromColAndRow(xCol, xRow, rows) : -1;
+
+  const { col: yCol, row: yRow } = triangle.neighborhoodY ?? invalidTriangle;
+  const yIndex =
+    yCol !== -1 && yRow !== -1 ? getIndexFromColAndRow(yCol, yRow, rows) : -1;
+
+  const { col: zCol, row: zRow } = triangle.neighborhoodZ ?? invalidTriangle;
+
+  const zIndex =
+    zCol !== -1 && zRow !== -1 ? getIndexFromColAndRow(zCol, zRow, rows) : -1;
+
+  return [triangleIndex, isUp ? 1 : -1, xIndex, yIndex, zIndex];
 };
 
 // Function to encode the shape with detailed neighborhood and orientation
@@ -445,30 +441,99 @@ export const encodeShape = (
   rows: number[]
 ): number[] => {
   return shape.flatMap((triangle, idx) => {
-    const neighborhoodIndices = [
-      shape.findIndex(
-        (t) =>
-          t.col === triangle.neighborhoodX?.col &&
-          t.row === triangle.neighborhoodX?.row
-      ),
-      shape.findIndex(
-        (t) =>
-          t.col === triangle.neighborhoodY?.col &&
-          t.row === triangle.neighborhoodY?.row
-      ),
-      shape.findIndex(
-        (t) =>
-          t.col === triangle.neighborhoodZ?.col &&
-          t.row === triangle.neighborhoodZ?.row
-      ),
-    ];
-
-    return [
-      triangle.row,
-      triangle.col, // Position
-      triangle.color ? 1 : 0, // Active or not
-      ...neighborhoodIndices.map((ni) => (ni !== -1 ? ni : -1)),
-      isUp(triangle, rows), // Orientation: up or down
-    ];
+    return encodeTriangle(triangle, idx, rows);
   });
+};
+
+export const getIndexFromColAndRow = (
+  col: number,
+  row: number,
+  colsPerRow: number[]
+): number => {
+  let index = 0;
+  for (let i = 0; i < row; i++) {
+    index += colsPerRow[i];
+  }
+  return index + col;
+};
+
+const canPlaceShape = (
+  targetTriangle: TriangleState,
+  shape: TriangleState[],
+  triangles: TriangleState[]
+) => {
+  const firstTriangle = shape[0];
+  const defaultColOffset = colsPerRowGrid[targetTriangle.row];
+  const isValid = shape.every((triangle) => {
+    const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
+    const targetCol =
+      targetTriangle.col +
+      triangle.col -
+      firstTriangle.col -
+      colsPerRowGrid[targetRow] +
+      defaultColOffset;
+    const targetTriangleUp = isTriangleUp(
+      { row: targetRow, col: targetCol },
+      colsPerRowGrid
+    );
+
+    const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
+
+    const validPosition =
+      targetRow >= 0 &&
+      targetRow < rowsOnGrid &&
+      targetCol >= 0 &&
+      targetCol < colsPerRowGrid[targetRow] &&
+      !triangles.find(
+        (t) => t.row === targetRow && t.col === targetCol && t.color != null
+      ) &&
+      targetTriangleUp === shapeTriangleUp;
+
+    return validPosition;
+  });
+
+  return isValid;
+};
+
+export const encodeAvailability = (
+  triangles: TriangleState[],
+  shapes: TriangleState[][]
+): number[] => {
+  const availability = triangles.map((triangle) => {
+    const availability = shapes.reduce((acc, shape, index) => {
+      if (canPlaceShape(triangle, shape, triangles)) {
+        return acc + 1 * index;
+      }
+      return acc;
+    }, 0);
+    return availability;
+  });
+  return availability;
+};
+
+// New function to determine the indexes where a shape can be placed
+export const getIndexesWhereShapeCanBePlaced = (
+  shape: TriangleState[],
+  triangles: TriangleState[]
+): number[] => {
+  if (shape.length === 0) return [];
+  return triangles
+    .map((triangle, index) => {
+      if (canPlaceShape(triangle, shape, triangles)) {
+        return index;
+      }
+      return -1;
+    })
+    .filter((index) => index !== -1);
+};
+
+export const getRandomNotEmptyShapeElementIndex = (
+  shapes: TriangleState[][]
+): number => {
+  const shapeIndex = getRandomNumber(0, shapes.length - 1);
+  const selectedShape = shapes[shapeIndex];
+
+  if (selectedShape.length === 0)
+    return getRandomNotEmptyShapeElementIndex(shapes);
+  return shapeIndex;
 };

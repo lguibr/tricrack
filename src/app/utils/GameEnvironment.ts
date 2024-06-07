@@ -20,6 +20,14 @@ export class GameEnvironment {
     return this.game.score;
   }
 
+  getTriangles() {
+    return this.game.triangles;
+  }
+
+  getShapes() {
+    return this.game.shapes;
+  }
+
   getTensorInputState() {
     return this.game.getTensorGameState();
   }

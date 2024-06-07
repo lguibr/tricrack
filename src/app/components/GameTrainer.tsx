@@ -40,10 +40,13 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
           console.group(`Episode ${episode + 1}`);
           let state = gameEnvironment.reset();
           let done = false;
-
           while (!done) {
             const currentMemoryLength = dqnAgent.memory.length;
-            const action = dqnAgent.act(state);
+            const action = dqnAgent.act(
+              state,
+              gameEnvironment.getTriangles(),
+              gameEnvironment.getShapes()
+            );
             const {
               nextState,
               reward,
@@ -54,20 +57,6 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
             state = nextState;
 
             if ((currentMemoryLength % movementsBatchSize) / 4 === 0) {
-              const lastMemory = dqnAgent.memory[dqnAgent.memory.length - 1];
-              const lastMemoryState = lastMemory.state.dataSync();
-              const lastMemoryAction = lastMemory.action.dataSync();
-              const lastMemoryReward = lastMemory.reward;
-              const lastMemoryNextState = lastMemory.nextState.dataSync();
-              const lastMemoryDone = lastMemory.done;
-              console.log("memory snapshot", {
-                state: Array.from(lastMemoryState),
-                action: Array.from(lastMemoryAction),
-                reward: lastMemoryReward,
-                nextState: Array.from(lastMemoryNextState),
-                done: lastMemoryDone,
-              });
-
               await dqnAgent.replay(movementsBatchSize);
             }
           }

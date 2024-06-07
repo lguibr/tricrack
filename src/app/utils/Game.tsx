@@ -12,11 +12,11 @@ import {
   buildNewShape,
   checkLineCollapse,
   getNeighbors,
-  getTriangleMinimalData,
   removeDuplicatedTrianglesByColAndRow,
   isTriangleUp,
-  gameStateToTensor,
   encodeShape,
+  encodeTriangle,
+  encodeAvailability,
 } from "./calculations";
 
 class Game {
@@ -253,8 +253,11 @@ class Game {
 
   // Modify the gameStateToTensor method to use new features
   public getTensorGameState(): tf.Tensor {
-    const occupancy = this.triangles.map((tri) => (tri.color ? 1 : 0));
-    const adjacency = this.triangles.map((tri) => this.computeAdjacency(tri));
+    const gridDescription = this.triangles
+      .map((tri, index) => encodeTriangle(tri, index, colsPerRowGrid))
+      .flat(5);
+
+    // const availability = encodeAvailability(this.triangles, this.shapes);
 
     // Encode shapes with comprehensive neighborhood information
     const maxShapeSize = 6; // Maximum number of triangles in any shape
@@ -272,13 +275,17 @@ class Game {
             neighborhoodZ: null,
           });
         }
-        const encodedShape = encodeShape(paddedShape, colsPerRowGrid); // Encode with rows for orientation
+        const encodedShape = encodeShape(paddedShape, colsPerRowShape); // Encode with rows for orientation
 
         return encodedShape;
       })
       .flat();
 
-    const inputFeatures = [...occupancy, ...adjacency, ...encodedShapes];
+    const inputFeatures = [
+      ...gridDescription,
+      // ...availability,
+      ...encodedShapes,
+    ];
 
     return tf.tensor(inputFeatures, [1, inputFeatures.length]);
   }

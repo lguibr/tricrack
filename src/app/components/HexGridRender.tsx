@@ -19,6 +19,7 @@ import {
   gridSize,
   gridPadding,
   colors,
+  trianglesShapeSize,
 } from "../utils/constants";
 import { TriangleState } from "../utils/types";
 import styled from "styled-components";
@@ -320,7 +321,7 @@ const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
         </Score>
       </Content>
       <GridContainer ref={gridRef}>
-        {game.triangles.map((triangle) => {
+        {game.triangles.map((triangle, index) => {
           const { x, y, triangleHeight } = calculatePosition(
             triangle,
             triangleSizeGrid,
@@ -333,20 +334,35 @@ const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
           );
 
           return (
-            <Triangle
-              key={`grid-triangle-${triangle.row}-${
-                triangle.col
-              }-grid-${Date.now()}`}
-              $x={x}
-              $y={y}
-              $size={triangleSizeGrid}
-              $triangleHeight={triangleHeight}
-              $isUp={isUp}
-              $color={triangle.color || null}
-              $zIndex={zIndex}
-              $rowIndex={triangle.row}
-              $isHovering={isHovered ? draggedShape.shape?.[0].color : null}
-            />
+            <>
+              <Triangle
+                key={`grid-triangle-${triangle.row}-${
+                  triangle.col
+                }-grid-${Date.now()}`}
+                $x={x}
+                $y={y}
+                $size={triangleSizeGrid}
+                $triangleHeight={triangleHeight}
+                $isUp={isUp}
+                $color={triangle.color || null}
+                $zIndex={zIndex}
+                $rowIndex={triangle.row}
+                $isHovering={isHovered ? draggedShape.shape?.[0].color : null}
+              ></Triangle>
+              <div
+                style={{
+                  zIndex: 9999999999,
+                  color: "white",
+                  position: "absolute",
+                  top: `${
+                    y + ((trianglesShapeSize / 2) * (triangle.row + 1)) / 4
+                  }px`,
+                  left: `${x + trianglesShapeSize / 4}px`,
+                }}
+              >
+                {index}
+              </div>
+            </>
           );
         })}
       </GridContainer>
