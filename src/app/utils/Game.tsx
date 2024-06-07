@@ -273,8 +273,6 @@ class Game {
           });
         }
         const encodedShape = encodeShape(paddedShape, colsPerRowGrid); // Encode with rows for orientation
-        console.log("shape", shape);
-        console.log("encodedShape", encodedShape);
 
         return encodedShape;
       })
