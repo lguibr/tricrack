@@ -1,8 +1,7 @@
-// src/app/contexts/HexGridContext.tsx
 "use client";
 
-import React, { createContext, useContext, useRef, useEffect } from "react";
-import Game from "../utils/Game";
+import { createContext, useContext, useRef, ReactNode } from "react";
+import Game from "../game";
 
 interface HexGridContextProps {
   game: Game;
@@ -12,7 +11,7 @@ const HexGridContext = createContext<HexGridContextProps | undefined>(
   undefined
 );
 
-export const HexGridProvider: React.FC<{ children: React.ReactNode }> = ({
+export const HexGridProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const gameRef = useRef<Game>(new Game());

@@ -1,3 +1,5 @@
+import { TriangleState } from "./types";
+
 export const gridSize =
   typeof window === "undefined"
     ? 500
@@ -17,13 +19,6 @@ export const maxShapeCols = Math.max(...colsPerRowShape);
 export const shapePadding = colsPerRowShape.map(
   (cols) => (maxShapeCols - cols) / 2
 );
-export const movementsBatchSize = 256;
-export const trainingEpisodes = 100;
-export const intervalToForceUpdate = 100;
-export const learningRate = 0.00001;
-export const normalizeUnitDivisor = 96 / 2;
-export const replayEveryNSteps = movementsBatchSize / 4;
-export const updateTargetNetworkEveryNSteps = movementsBatchSize;
 
 export const colors = [
   "#ff006e",
@@ -32,3 +27,12 @@ export const colors = [
   "#8338ec",
   "#3a86ff",
 ] as const;
+
+export const invalidTriangle: TriangleState = {
+  row: -1,
+  col: -1,
+  color: null,
+  neighborhoodX: null,
+  neighborhoodY: null,
+  neighborhoodZ: null,
+};

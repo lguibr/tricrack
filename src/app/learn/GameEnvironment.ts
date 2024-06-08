@@ -1,6 +1,5 @@
-// src/utils/GameEnvironment.ts
 import * as tfType from "@tensorflow/tfjs";
-import Game from "./Game";
+import Game from "../game";
 
 export class GameEnvironment {
   private game: Game;

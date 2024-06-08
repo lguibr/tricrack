@@ -10,12 +10,6 @@ export interface TriangleState {
 
 type Colors = (typeof colors)[number];
 
-export type GameState = {
-  triangles: number[];
-  shapes: [number, number][][];
-  score: number;
-};
-
 export type FixedLengthArray<T, L extends number> = L extends L
   ? number extends L
     ? T[]

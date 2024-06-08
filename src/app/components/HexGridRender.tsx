@@ -10,9 +10,9 @@ import React, {
 } from "react";
 import {
   calculatePosition,
-  calculateRowCol,
+  calculateRowColFromPosition,
   isTriangleUp,
-} from "../utils/calculations";
+} from "../helpers/triangles";
 import {
   colsPerRowGrid,
   triangleSizeGrid,
@@ -20,14 +20,14 @@ import {
   gridPadding,
   colors,
   trianglesShapeSize,
-} from "../utils/constants";
-import { TriangleState } from "../utils/types";
+} from "../helpers/constants";
+import { TriangleState } from "../helpers/types";
 import styled from "styled-components";
 import { Triangle } from "./Triangle";
 import ShapeRenderer from "./ShapeRenderer";
 import Modal from "./Modal";
 import Image from "next/image";
-import Game from "../utils/Game";
+import Game from "../game";
 
 const offSetY = 0;
 
@@ -114,7 +114,7 @@ const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
         const x = event.clientX - (gridPosition?.left || 0) + ox;
         const y = event.clientY - (gridPosition?.top || 0) - offSetY + oy;
 
-        const { col, row } = calculateRowCol(
+        const { col, row } = calculateRowColFromPosition(
           x,
           y,
           triangleSizeGrid,
@@ -152,7 +152,7 @@ const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
         const x = event.clientX - (gridPosition?.left || 0) + ox;
         const y = event.clientY - (gridPosition?.top || 0) - offSetY + oy;
 
-        const { col, row } = calculateRowCol(
+        const { col, row } = calculateRowColFromPosition(
           x,
           y,
           triangleSizeGrid,

@@ -1,16 +1,16 @@
 "use client";
 import React from "react";
-import { TriangleState } from "../utils/types";
-import { calculatePosition, isTriangleUp } from "../utils/calculations";
+import { TriangleState } from "../helpers/types";
+import { calculatePosition } from "../helpers/triangles";
+import { isTriangleUp } from "../helpers/triangles";
 import styled from "styled-components";
 import { Triangle } from "./Triangle";
 import {
   colsPerRowShape,
   shapePadding,
   shapeSize,
-  triangleSizeGrid,
   trianglesShapeSize,
-} from "../utils/constants";
+} from "../helpers/constants";
 
 const ShapeContainer = styled.div`
   display: flex;

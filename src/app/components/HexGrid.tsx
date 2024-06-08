@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import HexGridRender from "./HexGridRender";
 import { useHexGrid } from "../contexts/HexGridContext";
 import GameTrainer from "./GameTrainer";
-import { intervalToForceUpdate } from "../utils/constants";
+import { intervalToForceUpdate } from "../learn/configs";
 
 import * as tf from "@tensorflow/tfjs";
 

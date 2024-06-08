@@ -3,9 +3,9 @@ import {
   learningRate,
   movementsBatchSize,
   normalizeUnitDivisor,
-} from "./constants";
-import { TriangleState } from "./types";
-import { getRandomNotEmptyShapeElementIndex } from "./calculations";
+} from "./../learn/configs";
+import { TriangleState } from "../helpers/types";
+import { getRandomNotEmptyShapeElementIndex } from "../helpers/triangles";
 
 type Memory = {
   state: tfType.Tensor;
@@ -35,7 +35,7 @@ export class DQNAgent {
   public averageLoss: number;
 
   constructor(stateSize: number, actionSize: number, tf: typeof tfType) {
-    this.modelName = "localstorage://DQNAgentModel";
+    this.modelName = "indexeddb://DQNAgentModel";
 
     this.tf = tf;
     this.stateSize = stateSize;
@@ -68,20 +68,8 @@ export class DQNAgent {
     model.add(
       this.tf.layers.dense({
         inputShape: [this.stateSize],
-        units: this.stateSize,
+        units: this.actionSize,
 
-        activation: "relu",
-      })
-    );
-    model.add(
-      this.tf.layers.dense({
-        units: Math.floor(this.stateSize / 5),
-        activation: "relu",
-      })
-    );
-    model.add(
-      this.tf.layers.dense({
-        units: 96,
         activation: "relu",
       })
     );
@@ -215,7 +203,7 @@ export class DQNAgent {
             if (this.trainStep % this.updateTargetNetworkFrequency === 0) {
               console.log("Updating target network");
               this.updateTargetNetwork();
-              // this.saveModelWeights();
+              this.saveModelWeights();
             }
           },
         },
@@ -230,7 +218,7 @@ export class DQNAgent {
     const diffOfAverageLoss = this.averageLoss - currentAverageLoss;
     console.log(
       `%cAverage Loss: ${currentAverageLoss} \nDiffAverageLoss: ${diffOfAverageLoss} \nPreviousAverageLoss: ${this.averageLoss} \nExplorationRate ${this.explorationRate}`,
-      "background: #222; color: #ff006e"
+      "background: #000; color: #ff006e; font-weight: bold; font-size: 16px;"
     );
 
     this.averageLoss = currentAverageLoss;

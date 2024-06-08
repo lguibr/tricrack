@@ -1,19 +1,26 @@
 // src/app/components/GameTrainer.tsx
 
 import React, { useEffect, useRef } from "react";
-import { GameEnvironment } from "../utils/GameEnvironment";
-import { DQNAgent } from "../utils/DQNAgent";
-import Game from "../utils/Game";
-import { movementsBatchSize, replayEveryNSteps, trainingEpisodes } from "../utils/constants";
+import { GameEnvironment } from "../learn/GameEnvironment";
+import { DQNAgent } from "../learn/DQNAgent";
+import Game from "../game";
+import {
+  movementsBatchSize,
+  replayEveryNSteps,
+  trainingEpisodes,
+} from "../learn/configs";
 import * as tfType from "@tensorflow/tfjs";
+import { styled } from "styled-components";
 
 const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
   game,
   tf,
 }) => {
+  const [episode, setEpisode] = React.useState(0);
   const agentRef = useRef<DQNAgent | null>(null);
   const gameEnvironmentRef = useRef<GameEnvironment | null>(null);
   const haveInstanciated = useRef(false);
+
   useEffect(() => {
     // Ensure GameEnvironment is created only once
     if (!gameEnvironmentRef.current) {
@@ -38,6 +45,7 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
       if (dqnAgent && gameEnvironment) {
         for (let episode = 0; episode < trainingEpisodes; episode++) {
           console.group(`Episode ${episode + 1}`);
+          setEpisode(episode + 1);
           let state = gameEnvironment.reset();
           let done = false;
           while (!done) {
@@ -72,7 +80,20 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
     trainAgent();
   }, [game, tf]);
 
-  return <div>Training the agent...</div>;
+  return (
+    <FloatingContent>
+      Training the agent game {episode} of {trainingEpisodes} ...
+    </FloatingContent>
+  );
 };
 
 export default GameTrainer;
+
+const FloatingContent = styled.div`
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+`;

@@ -1,23 +1,23 @@
 // src/utils/Game.ts
 import * as tf from "@tensorflow/tfjs";
 
-import { TriangleState } from "./types";
+import { TriangleState } from "../helpers/types";
 import {
   colsPerRowGrid,
   rowsOnGrid,
   colsPerRowShape,
   gridPadding,
-} from "./constants";
+} from "../helpers/constants";
 import {
   buildNewShape,
-  checkLineCollapse,
-  getNeighbors,
   removeDuplicatedTrianglesByColAndRow,
-  isTriangleUp,
-  encodeShape,
-  encodeTriangle,
-  encodeAvailability,
-} from "./calculations";
+} from "../helpers/triangles";
+
+import { encodeShape, encodeTriangle } from "./../learn/encoders";
+
+import { checkLineCollapse } from "./../game/collapse";
+
+import { isTriangleUp, initializeTrianglesGrid } from "../helpers/triangles";
 
 class Game {
   private historyTriangles: TriangleState[][] = [];
@@ -67,32 +67,8 @@ class Game {
   public resetGame() {
     this.historyScores = [0];
 
-    const initialTriangles: TriangleState[] = [];
-    for (let row = 0; row < rowsOnGrid; row++) {
-      const cols = colsPerRowGrid[row];
-      for (let col = 0; col < cols; col++) {
-        const triangle = {
-          row,
-          col,
-          color: null,
-          neighborhoodX: null,
-          neighborhoodY: null,
-          neighborhoodZ: null,
-        };
-        initialTriangles.push(triangle);
-      }
-    }
-
-    initialTriangles.forEach((triangle) => {
-      const neighbors = getNeighbors(
-        triangle,
-        initialTriangles,
-        colsPerRowGrid
-      );
-      triangle.neighborhoodX = neighbors.X;
-      triangle.neighborhoodY = neighbors.Y;
-      triangle.neighborhoodZ = neighbors.Z;
-    });
+    const initialTriangles: TriangleState[] =
+      initializeTrianglesGrid(colsPerRowGrid);
 
     this.historyTriangles = [[...initialTriangles]];
     this.historyShapes = [Array.from({ length: 3 }, () => buildNewShape())];
@@ -240,15 +216,6 @@ class Game {
   public getColRowByIndex(index: number): [number?, number?] {
     const triangle = this.triangles.find((triangle, i) => i === index);
     return [triangle?.col, triangle?.row];
-  }
-
-  // Add a method to compute adjacency features
-  private computeAdjacency(triangle: TriangleState): number {
-    const neighbors = getNeighbors(triangle, this.triangles, colsPerRowGrid);
-    return [neighbors.X, neighbors.Y, neighbors.Z].reduce(
-      (acc, curr) => acc + (curr?.color ? 1 : 0),
-      0
-    );
   }
 
   // Modify the gameStateToTensor method to use new features
