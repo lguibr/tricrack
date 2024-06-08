@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { GameEnvironment } from "../utils/GameEnvironment";
 import { DQNAgent } from "../utils/DQNAgent";
 import Game from "../utils/Game";
-import { movementsBatchSize, trainingEpisodes } from "../utils/constants";
+import { movementsBatchSize, replayEveryNSteps, trainingEpisodes } from "../utils/constants";
 import * as tfType from "@tensorflow/tfjs";
 
 const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
@@ -56,7 +56,7 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
             dqnAgent.remember(state, action, reward, nextState, isDone);
             state = nextState;
 
-            if ((currentMemoryLength % movementsBatchSize) / 4 === 0) {
+            if (currentMemoryLength % replayEveryNSteps === 0) {
               await dqnAgent.replay(movementsBatchSize);
             }
           }

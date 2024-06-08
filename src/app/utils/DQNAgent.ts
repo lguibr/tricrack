@@ -5,10 +5,7 @@ import {
   normalizeUnitDivisor,
 } from "./constants";
 import { TriangleState } from "./types";
-import {
-  // getIndexesWhereShapeCanBePlaced,
-  getRandomNotEmptyShapeElementIndex,
-} from "./calculations";
+import { getRandomNotEmptyShapeElementIndex } from "./calculations";
 
 type Memory = {
   state: tfType.Tensor;
@@ -62,12 +59,16 @@ export class DQNAgent {
   }
 
   buildModel() {
+    console.log(
+      `Building mode ${this.modelName} : ${this.stateSize} / ${this.actionSize}`
+    );
+
     const model = this.tf.sequential();
     // Input Layer
     model.add(
       this.tf.layers.dense({
         inputShape: [this.stateSize],
-        units: Math.floor(this.stateSize / 2),
+        units: this.stateSize,
 
         activation: "relu",
       })
@@ -78,11 +79,10 @@ export class DQNAgent {
         activation: "relu",
       })
     );
-
-    // Hidden Layer
     model.add(
       this.tf.layers.dense({ units: this.actionSize, activation: "linear" })
     );
+    // Compile the model
     model.compile({
       loss: "meanSquaredError",
       optimizer: this.tf.train.adam(this.learningRate),
@@ -90,7 +90,6 @@ export class DQNAgent {
 
     return model;
   }
-
   remember(
     state: tfType.Tensor,
     action: tfType.Tensor,
@@ -160,45 +159,43 @@ export class DQNAgent {
   }
 
   async replay(batchSize: number) {
-    console.group("Replaying");
     const start = Date.now();
     const maxIndex = this.memory.length - 1 - batchSize;
     const randomIndex = Math.floor(Math.random() * maxIndex);
     const minibatch = this.memory.slice(randomIndex, randomIndex + batchSize);
-
     let batchLoss = 0;
 
     for (const { state, action, reward, nextState, done } of minibatch) {
-      const reshapedNextState =
-        this.ensureInputShape(nextState).div(normalizeUnitDivisor);
-      const reshapedState =
-        this.ensureInputShape(state).div(normalizeUnitDivisor);
+      const reshapedNextState = nextState.div(normalizeUnitDivisor);
+      const reshapedState = state.div(normalizeUnitDivisor);
 
-      const predictedNextStateValues = this.targetModel.predict(
-        reshapedNextState
-      ) as tfType.Tensor;
-
-      const maxPredictedFutureQualityValue = Math.max(
-        ...Array.from(predictedNextStateValues.dataSync())
-      );
-      const computedTargetQualityValue =
+      const targetQ =
         reward +
-        (done ? 0 : this.discountFactor * maxPredictedFutureQualityValue);
-
-      const predictedStateValues = this.model.predict(
+        this.discountFactor *
+          (done
+            ? 0
+            : Math.max(
+                ...Array.from(
+                  (
+                    this.targetModel.predict(
+                      reshapedNextState
+                    ) as tfType.Tensor<tfType.Rank.R2>
+                  ).dataSync()
+                )
+              ));
+      const qValues = this.model.predict(
         reshapedState
-      ) as tfType.Tensor;
+      ) as tfType.Tensor<tfType.Rank.R2>;
 
-      const updatedQualityValues = Array.from(predictedStateValues.dataSync());
-      const [shapeIndex, targetTriangleIndex] = Array.from(action.dataSync());
+      const qValuesCopy = qValues.arraySync() as number[][];
+
+      const [shapeIndex, targetTriangleIndex] = Array.from(
+        action.dataSync() as unknown as number[]
+      );
       const actionIndex = shapeIndex * 96 + targetTriangleIndex;
+      qValuesCopy[0][actionIndex] = targetQ;
 
-      updatedQualityValues[actionIndex] = computedTargetQualityValue;
-
-      const targetTensor = this.tf.tensor(updatedQualityValues, [
-        1,
-        this.actionSize,
-      ]);
+      const targetTensor = this.tf.tensor(qValuesCopy);
 
       await this.model.fit(reshapedState, targetTensor, {
         epochs: 1,
@@ -217,11 +214,7 @@ export class DQNAgent {
         },
       });
 
-      this.tf.dispose([
-        predictedNextStateValues,
-        predictedStateValues,
-        targetTensor,
-      ]);
+      this.tf.dispose([qValues, targetTensor, targetTensor]);
     }
 
     this.totalLoss += batchLoss;
@@ -240,10 +233,10 @@ export class DQNAgent {
     } else {
       console.log("exploration reaches the min value");
     }
-    console.log();
+
     const end = Date.now();
     const duration = end - start;
-    console.log(duration, "ms");
+    console.log(`Replay duration: ${duration / 1000}s`);
 
     console.groupEnd();
   }
