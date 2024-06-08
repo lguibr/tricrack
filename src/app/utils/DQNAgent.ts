@@ -75,10 +75,17 @@ export class DQNAgent {
     );
     model.add(
       this.tf.layers.dense({
-        units: Math.floor(this.stateSize / 3),
+        units: Math.floor(this.stateSize / 5),
         activation: "relu",
       })
     );
+    model.add(
+      this.tf.layers.dense({
+        units: 96,
+        activation: "relu",
+      })
+    );
+
     model.add(
       this.tf.layers.dense({ units: this.actionSize, activation: "linear" })
     );
