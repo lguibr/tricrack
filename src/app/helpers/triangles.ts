@@ -103,6 +103,7 @@ export const getIndexFromColAndRow = (
   return index + col;
 };
 
+// DEV Add unit tests and fix.
 export const canPlaceShape = (
   targetTriangle: TriangleState,
   shape: TriangleState[],
@@ -140,7 +141,7 @@ export const canPlaceShape = (
 
   return isValid;
 };
-
+// DEV Its bugged need unit tests and fix.
 export const getIndexesWhereShapeCanBePlaced = (
   shape: TriangleState[],
   triangles: TriangleState[]

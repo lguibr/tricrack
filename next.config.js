@@ -1,4 +1,6 @@
 const withPWA = require('next-pwa')({
+
+
   dest: 'public',
   reloadOnOnline: true,
   cacheOnFrontEndNav: true,
@@ -35,6 +37,20 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = {
   compiler: { styledComponents: true },
+  "presets": [
+    [
+      "next/babel",
+      ['@babel/preset-env', { targets: { node: 'current' } }],
+      '@babel/preset-typescript',
+      {
+        "preset-env": {},
+        "transform-runtime": {},
+        "styled-jsx": {},
+        "class-properties": {}
+      }
+    ]
+  ],
+  plugins: []
 }
 
 module.exports = withPWA(nextConfig);

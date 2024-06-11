@@ -8,11 +8,13 @@ import GameTrainer from "./GameTrainer";
 import { intervalToForceUpdate } from "../learn/configs";
 
 import * as tf from "@tensorflow/tfjs";
+import { styled } from "styled-components";
 
 const HexGrid: React.FC = () => {
   const { game } = useHexGrid();
   const [forceUpdate, setForceUpdate] = useState(0);
   const tfRef = React.useRef<typeof tf | null>(null);
+  const [training, setTraining] = useState(false);
   useEffect(() => {
     const debounced = setTimeout(() => {
       const loadTf = async () => {
@@ -49,9 +51,29 @@ const HexGrid: React.FC = () => {
   return (
     <div style={{ position: "relative" }}>
       <HexGridRender frame={forceUpdate} game={game} />
-      <GameTrainer tf={tfRef.current} game={game} />
+      <Button onClick={() => setTraining((p) => !p)}>
+        {training ? "Stop Training" : "Start Training"}
+      </Button>
+      {training && <GameTrainer tf={tfRef.current} game={game} />}
     </div>
   );
 };
 
 export default HexGrid;
+
+const Button = styled.button`
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #ff006e;
+  color: white;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  &:hover {
+    background-color: #ff0055;
+  }
+`;
