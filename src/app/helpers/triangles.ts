@@ -103,60 +103,6 @@ export const getIndexFromColAndRow = (
   return index + col;
 };
 
-// DEV Add unit tests and fix.
-export const canPlaceShape = (
-  targetTriangle: TriangleState,
-  shape: TriangleState[],
-  triangles: TriangleState[]
-) => {
-  const firstTriangle = shape[0];
-  const defaultColOffset = colsPerRowGrid[targetTriangle.row];
-  const isValid = shape.every((triangle) => {
-    const targetRow = targetTriangle.row + triangle.row - firstTriangle.row;
-    const targetCol =
-      targetTriangle.col +
-      triangle.col -
-      firstTriangle.col -
-      colsPerRowGrid[targetRow] +
-      defaultColOffset;
-    const targetTriangleUp = isTriangleUp(
-      { row: targetRow, col: targetCol },
-      colsPerRowGrid
-    );
-
-    const shapeTriangleUp = isTriangleUp(triangle, colsPerRowShape);
-
-    const validPosition =
-      targetRow >= 0 &&
-      targetRow < rowsOnGrid &&
-      targetCol >= 0 &&
-      targetCol < colsPerRowGrid[targetRow] &&
-      !triangles.find(
-        (t) => t.row === targetRow && t.col === targetCol && t.color != null
-      ) &&
-      targetTriangleUp === shapeTriangleUp;
-
-    return validPosition;
-  });
-
-  return isValid;
-};
-// DEV Its bugged need unit tests and fix.
-export const getIndexesWhereShapeCanBePlaced = (
-  shape: TriangleState[],
-  triangles: TriangleState[]
-): number[] => {
-  if (shape.length === 0) return [];
-  return triangles
-    .map((triangle, index) => {
-      if (canPlaceShape(triangle, shape, triangles)) {
-        return index;
-      }
-      return -1;
-    })
-    .filter((index) => index !== -1);
-};
-
 export const getRandomNotEmptyShapeElementIndex = (
   shapes: TriangleState[][]
 ): number => {

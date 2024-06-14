@@ -33,7 +33,6 @@ const offSetY = 0;
 
 const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
   game,
-  frame,
 }) => {
   const [draggedShape, setDraggedShape] = useState<{
     shape: TriangleState[] | null;
@@ -368,7 +367,20 @@ const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
       </GridContainer>
       <OptionsContainer>
         {game.shapes?.map((shape, index) => (
-          <Option key={index}>
+          <Option
+            key={index}
+            onClick={() => {
+              console.log(
+                JSON.stringify({
+                  shape: shape.map(({ col, color, row }) => ({
+                    col,
+                    row,
+                    color,
+                  })),
+                })
+              );
+            }}
+          >
             <ShapeRenderer
               shape={shape}
               onDragStart={(event) => handleDragStart(index, event, shape)}
