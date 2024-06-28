@@ -3,14 +3,14 @@ import {
   explorationDecay,
   learningRate,
   updateTargetNetworkEveryNSteps,
-} from "./../learn/configs";
+} from "./configs";
 import { Memory, TriangleState } from "../helpers/types";
 import {
   getIndexFromColAndRow,
   getRandomNotEmptyShapeElementIndex,
 } from "../helpers/triangles";
 import { getRandomNumber } from "../helpers/calculations";
-import { colsPerRowGrid } from "../helpers/constants";
+import { colsPerRowGrid, gridPadding } from "../helpers/constants";
 
 export class DQNAgent {
   public actionTimes: number[] = [];
@@ -77,7 +77,7 @@ export class DQNAgent {
     // Process first input
     const convGrid = this.tf.layers
       .conv2d({
-        filters: 120,
+        filters: 120 * 3,
         kernelSize: [3, 3],
         activation: "relu",
         padding: "same",
@@ -161,38 +161,57 @@ export class DQNAgent {
     const input1Reshaped = input1.reshape([1, 7, 8, 15]);
     const input2Reshaped = input2.reshape([1, 5, 2, 3]);
     let action;
+
     if (Math.random() <= this.explorationRate) {
-      const availableShapeIndex =
-        getRandomNotEmptyShapeElementIndex(optionsByShape);
+      const shapeIndex = getRandomNotEmptyShapeElementIndex(optionsByShape);
 
-      const currentOptions = optionsByShape[availableShapeIndex];
-
-      const { col, row } =
+      //DEV FIX - The coordinates for current options is in the old format without the padding on the rows
+      const currentOptions = optionsByShape[shapeIndex];
+      const { col: unPaddedCol, row: unPaddedRow } =
         currentOptions[getRandomNumber(0, currentOptions.length - 1)];
-      const randomIndex = Math.floor(Math.random() * triangles.length);
-      const indexFromColAndRow = getIndexFromColAndRow(
-        col,
-        row,
+
+      const unPaddedIndex = getIndexFromColAndRow(
+        unPaddedCol,
+        unPaddedRow,
         colsPerRowGrid
       );
 
-      action = this.tf.tensor(
-        [availableShapeIndex, indexFromColAndRow ?? randomIndex],
-        [1, 2]
-      );
+      const paddingRowCol = (paddedIndex: number) => {
+        const row = Math.floor(paddedIndex / 15);
+        const padding = gridPadding[row];
+        const col = (paddedIndex % 15) - padding;
+        return [col, row];
+      };
+
+      const [col, row] = paddingRowCol(unPaddedIndex);
+
+      const getIndexFromPaddedColAndRow = (col: number, row: number) =>
+        row * 15 + col;
+
+      const positionIndex = getIndexFromPaddedColAndRow(col, row);
+      action = this.tf.tensor([shapeIndex, positionIndex], [1, 2]);
     } else {
       const predictedQualityValues = this.model.predict([
         input1Reshaped,
         input2Reshaped,
       ]) as tfType.Tensor;
-      const actionIndex = Array.from(
-        predictedQualityValues.argMax(-1).dataSync()
+
+      const shapeProbabilities = predictedQualityValues.slice([0, 0], [1, 3]);
+      const shapeIndex = Array.from(
+        shapeProbabilities.argMax(-1).dataSync()
       )[0];
 
-      const shapeIndex = Math.floor(actionIndex / 96); // 0 to 2
-      const target = actionIndex % 96; // 0 to 95
-      action = this.tf.tensor([shapeIndex, target], [1, 2]);
+      const targetProbabilities = predictedQualityValues.slice(
+        [0, 3],
+        [1, 120]
+      );
+      const targetIndex = Array.from(
+        targetProbabilities.argMax(-1).dataSync()
+      )[0];
+
+      action = this.tf.tensor([shapeIndex, targetIndex], [1, 2]);
     }
+
     const end = Date.now(); // End timing
     this.actionTimes.push(end - start); // Store action time
     return action;
@@ -242,10 +261,11 @@ export class DQNAgent {
 
       const qValuesCopy = qValues.arraySync() as number[][];
 
-      const [shapeIndex, targetTriangleIndex] = Array.from(
+      const [shapeIndex, targetIndex] = Array.from(
         action.dataSync() as unknown as number[]
       );
-      const actionIndex = shapeIndex * 96 + targetTriangleIndex;
+
+      const actionIndex = 3 + targetIndex; // the first 3 are shape selection, rest are target index
       qValuesCopy[0][actionIndex] = targetQ;
 
       const targetTensor = this.tf.tensor(qValuesCopy);

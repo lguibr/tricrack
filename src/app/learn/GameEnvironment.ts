@@ -1,5 +1,6 @@
 import * as tfType from "@tensorflow/tfjs";
 import Game from "../game";
+import { gridPadding } from "../helpers/constants";
 
 export class GameEnvironment {
   private game: Game;
@@ -35,12 +36,18 @@ export class GameEnvironment {
   getValidPositions() {
     return this.game.getValidPositionsByShapes();
   }
-
   step(action: tfType.Tensor) {
     const [actionList] = action.toInt().arraySync() as number[][];
-    const [shapeIndex, target] = actionList;
+    const [shapeIndex, paddedIndexTarget] = actionList;
 
-    const [col, row] = this.game.getColRowByIndex(target);
+    const unPaddingRowCol = (paddedIndex: number) => {
+      const row = Math.floor(paddedIndex / 15);
+      const padding = gridPadding[row];
+      const col = (paddedIndex % 15) + padding;
+      return [col, row];
+    };
+
+    const [col, row] = unPaddingRowCol(paddedIndexTarget);
 
     this.game.moveShapeToTriangle(col ?? 0, row ?? 0, shapeIndex);
     const nextState = this.getTensorInputState();

@@ -1,4 +1,4 @@
-export const movementsBatchSize = 1;
+export const movementsBatchSize = 16;
 export const trainingEpisodes = 1000;
 export const intervalToForceUpdate = 250;
 export const learningRate = 0.0004;

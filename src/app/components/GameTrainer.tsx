@@ -36,7 +36,7 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
     if (!agentRef.current) {
       const stateSize = game.getTensorGameState()[0].shape[1]!;
 
-      const actionSize = 96 * 3; // 96 targets * 3 shapes
+      const actionSize = 8 * 15 + 3;
       if (tf != null) {
         agentRef.current = new DQNAgent(stateSize, actionSize, tf);
       }
