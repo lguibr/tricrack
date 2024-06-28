@@ -1,7 +1,7 @@
 // src/utils/Game.ts
 import * as tf from "@tensorflow/tfjs";
 
-import { TriangleState } from "../helpers/types";
+import { FixedLengthArray, TriangleState } from "../helpers/types";
 import {
   colsPerRowGrid,
   rowsOnGrid,
@@ -10,10 +10,9 @@ import {
 } from "../helpers/constants";
 import {
   buildNewShape,
+  getIndexFromColAndRow,
   removeDuplicatedTrianglesByColAndRow,
 } from "../helpers/triangles";
-
-import { encodeShape, encodeTriangle } from "./../learn/encoders";
 
 import { checkLineCollapse } from "./../game/collapse";
 
@@ -218,43 +217,209 @@ class Game {
     return [triangle?.col, triangle?.row];
   }
 
-  // Modify the gameStateToTensor method to use new features
-  public getTensorGameState(): tf.Tensor {
-    const gridDescription = this.triangles
-      .map((tri, index) => encodeTriangle(tri, index, colsPerRowGrid))
-      .flat(5);
+  private getEmptyGrid(): FixedLengthArray<FixedLengthArray<number, 15>, 8> {
+    const emptyGrid = Array.from({ length: 8 }, () =>
+      Array.from({ length: 15 }, () => -1)
+    ) as FixedLengthArray<FixedLengthArray<number, 15>, 8>;
 
-    // const availability = encodeAvailability(this.triangles, this.shapes);
+    return emptyGrid;
+  }
 
-    // Encode shapes with comprehensive neighborhood information
-    const maxShapeSize = 6; // Maximum number of triangles in any shape
-    const encodedShapes = this.shapes
-      .map((shape) => {
-        const paddedShape = shape.slice(); // Copy the shape
-        while (paddedShape.length < maxShapeSize) {
-          // Pad with a default inactive triangle
-          paddedShape.push({
-            row: -1,
-            col: -1,
-            color: null,
-            neighborhoodX: null,
-            neighborhoodY: null,
-            neighborhoodZ: null,
-          });
-        }
-        const encodedShape = encodeShape(paddedShape, colsPerRowShape); // Encode with rows for orientation
+  getEmptyShapeGrid(): FixedLengthArray<FixedLengthArray<number, 3>, 2> {
+    return [
+      [-1, -1, -1],
+      [-1, -1, -1],
+    ];
+  }
 
-        return encodedShape;
-      })
-      .flat();
-
-    const inputFeatures = [
-      ...gridDescription,
-      // ...availability,
-      ...encodedShapes,
+  private getShapesGrid(): FixedLengthArray<
+    FixedLengthArray<FixedLengthArray<number, 3>, 2>,
+    3
+  > {
+    const shapesGrid: FixedLengthArray<
+      FixedLengthArray<FixedLengthArray<number, 3>, 2>,
+      3
+    > = [
+      this.getEmptyShapeGrid(),
+      this.getEmptyShapeGrid(),
+      this.getEmptyShapeGrid(),
     ];
 
-    return tf.tensor(inputFeatures, [1, inputFeatures.length]);
+    this.shapes.forEach((shape, shapeIndex) => {
+      shape.forEach((triangle) => {
+        const { row, col } = triangle;
+        if (row < 8 && col < 15) {
+          shapesGrid[shapeIndex][row][col] = 1;
+        }
+      });
+    });
+
+    return shapesGrid;
+  }
+
+  private getGrid(): FixedLengthArray<FixedLengthArray<number, 15>, 8> {
+    const grid = this.getEmptyGrid();
+    this.triangles.forEach((triangle) => {
+      const { row, col: paddedCol, color } = triangle;
+      const rowOffset = gridPadding[row];
+      const realCol = paddedCol + rowOffset;
+      grid[row][realCol] = 1;
+    });
+
+    return grid;
+  }
+  private getGridAvailability(): FixedLengthArray<
+    FixedLengthArray<number, 15>,
+    8
+  > {
+    const grid = this.getEmptyGrid();
+    this.triangles.forEach((triangle) => {
+      const { row, col: paddedCol, color } = triangle;
+      const active = color != null;
+      const rowOffset = gridPadding[row];
+      const realCol = paddedCol + rowOffset;
+
+      grid[row][realCol] = active ? 0 : 1;
+    });
+
+    return grid;
+  }
+
+  private getGriDownwards(): FixedLengthArray<FixedLengthArray<number, 15>, 8> {
+    const grid = this.getEmptyGrid();
+    this.triangles.forEach((triangle) => {
+      const { row, col: paddedCol } = triangle;
+      const isUp = isTriangleUp(triangle, colsPerRowGrid);
+
+      const rowOffset = gridPadding[row];
+      const realCol = paddedCol + rowOffset;
+
+      grid[row][realCol] = !isUp ? 1 : 0;
+    });
+
+    return grid;
+  }
+  private getGridUpwards(): FixedLengthArray<FixedLengthArray<number, 15>, 8> {
+    const grid = this.getEmptyGrid();
+    this.triangles.forEach((triangle) => {
+      const { row, col: paddedCol } = triangle;
+      const isUp = isTriangleUp(triangle, colsPerRowGrid);
+
+      const rowOffset = gridPadding[row];
+      const realCol = paddedCol + rowOffset;
+
+      grid[row][realCol] = isUp ? 1 : 0;
+    });
+
+    return grid;
+  }
+
+  private getShapesUpwardness(): FixedLengthArray<
+    FixedLengthArray<number, 3>,
+    2
+  > {
+    const shapeOrientation = this.getEmptyShapeGrid();
+    const placeHolderShape = [
+      { row: 0, col: 0, color: 0 },
+      { row: 0, col: 1, color: 0 },
+      { row: 0, col: 2, color: 0 },
+      { row: 1, col: 0, color: 0 },
+      { row: 1, col: 1, color: 0 },
+      { row: 1, col: 2, color: 0 },
+    ];
+
+    placeHolderShape.forEach((triangle) => {
+      const { row, col } = triangle;
+      if (row < 8 && col < 15) {
+        const isUp = isTriangleUp(triangle, colsPerRowShape);
+        shapeOrientation[row][col] = isUp ? 1 : 0;
+      }
+    });
+
+    return shapeOrientation;
+  }
+  private getShapesDownwards(): FixedLengthArray<
+    FixedLengthArray<number, 3>,
+    2
+  > {
+    const shapeOrientation = this.getEmptyShapeGrid();
+    const placeHolderShape = [
+      { row: 0, col: 0, color: 0 },
+      { row: 0, col: 1, color: 0 },
+      { row: 0, col: 2, color: 0 },
+      { row: 1, col: 0, color: 0 },
+      { row: 1, col: 1, color: 0 },
+      { row: 1, col: 2, color: 0 },
+    ];
+
+    placeHolderShape.forEach((triangle) => {
+      const { row, col } = triangle;
+      if (row < 8 && col < 15) {
+        const isUp = isTriangleUp(triangle, colsPerRowShape);
+        shapeOrientation[row][col] = !isUp ? 1 : 0;
+      }
+    });
+
+    return shapeOrientation;
+  }
+
+  private getTensorGridShape(): number[] {
+    return [7, 8, 15];
+  }
+  private getTensorShapeShape(): number[] {
+    return [5, 2, 3];
+  }
+
+  private getFittableByShapeGrid(): FixedLengthArray<
+    FixedLengthArray<FixedLengthArray<number, 15>, 8>,
+    3
+  > {
+    const emptyGrids: FixedLengthArray<
+      FixedLengthArray<FixedLengthArray<number, 15>, 8>,
+      3
+    > = [this.getEmptyGrid(), this.getEmptyGrid(), this.getEmptyGrid()];
+
+    const validPositionsByShapes = this.getValidPositionsByShapes();
+
+    validPositionsByShapes.forEach((positions, positionIndex) =>
+      positions.forEach(({ row, col }) => {
+        const rowOffset = gridPadding[row];
+        const realCol = col + rowOffset;
+        emptyGrids[positionIndex][row][realCol] = 1;
+      })
+    );
+
+    return emptyGrids;
+  }
+
+  public getTensorGameState(): [tf.Tensor, tf.Tensor] {
+    const gridFormat = this.getGrid();
+    const gridDownwards = this.getGriDownwards();
+    const gridUpwards = this.getGridUpwards();
+    const gridAvailability = this.getGridAvailability();
+
+    const shapesGrid = this.getShapesGrid();
+    const shapesUpwardness = this.getShapesUpwardness();
+    const shapesDownwards = this.getShapesDownwards();
+    const fittableByShapeGrid = this.getFittableByShapeGrid();
+
+    const gridsFeatures = [
+      gridFormat,
+      gridAvailability,
+      gridDownwards,
+      gridUpwards,
+      ...fittableByShapeGrid,
+    ];
+
+    const shapesFeatures = [...shapesGrid, shapesUpwardness, shapesDownwards];
+
+    const girdTensorShape = this.getTensorGridShape();
+    const gridTensor = tf.tensor(gridsFeatures, girdTensorShape);
+
+    const shapeTensorShape = this.getTensorShapeShape();
+    const shapeTensor = tf.tensor(shapesFeatures, shapeTensorShape);
+
+    return [gridTensor, shapeTensor];
   }
 
   public isGameOver() {

@@ -15,6 +15,18 @@ const HexGrid: React.FC = () => {
   const [forceUpdate, setForceUpdate] = useState(0);
   const tfRef = React.useRef<typeof tf | null>(null);
   const [training, setTraining] = useState(false);
+
+  const clearStorage = async () => {
+    // Clear localStorage
+    localStorage.clear();
+    // Clear indexedDB
+    const databases = await indexedDB.databases();
+    databases.forEach((db) => {
+      indexedDB.deleteDatabase(db.name!);
+    });
+    console.log("Cleared indexDB and localStorage");
+  };
+
   useEffect(() => {
     const debounced = setTimeout(() => {
       const loadTf = async () => {
@@ -54,6 +66,8 @@ const HexGrid: React.FC = () => {
       <Button onClick={() => setTraining((p) => !p)}>
         {training ? "Stop Training" : "Start Training"}
       </Button>
+      <ClearButton onClick={clearStorage}>Clear Storage</ClearButton>
+
       {training && <GameTrainer tf={tfRef.current} game={game} />}
     </div>
   );
@@ -64,6 +78,23 @@ export default HexGrid;
 const Button = styled.button`
   position: absolute;
   top: 10px;
+  right: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #ff006e;
+  color: white;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  &:hover {
+    background-color: #ff0055;
+  }
+`;
+
+const ClearButton = styled.button`
+  position: absolute;
+  bottom: 50px;
   right: 10px;
   padding: 10px;
   border-radius: 5px;

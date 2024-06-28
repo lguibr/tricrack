@@ -104,7 +104,7 @@ export const getIndexFromColAndRow = (
 };
 
 export const getRandomNotEmptyShapeElementIndex = (
-  shapes: TriangleState[][]
+  shapes: { row: number; col: number }[][]
 ): number => {
   const shapeIndex = getRandomNumber(0, shapes.length - 1);
   const selectedShape = shapes[shapeIndex];

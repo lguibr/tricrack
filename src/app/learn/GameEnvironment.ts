@@ -4,6 +4,7 @@ import Game from "../game";
 export class GameEnvironment {
   private game: Game;
   private previousScore = 0;
+  private howLongStaticScore = 0;
 
   constructor(game: Game) {
     this.game = game;
@@ -31,6 +32,10 @@ export class GameEnvironment {
     return this.game.getTensorGameState();
   }
 
+  getValidPositions() {
+    return this.game.getValidPositionsByShapes();
+  }
+
   step(action: tfType.Tensor) {
     const [actionList] = action.toInt().arraySync() as number[][];
     const [shapeIndex, target] = actionList;
@@ -41,11 +46,27 @@ export class GameEnvironment {
     const nextState = this.getTensorInputState();
 
     const score = this.getScore();
-    const isScoreBiggest = score > this.previousScore;
     const pointsDiff = score - this.previousScore;
-    const reward = isScoreBiggest ? (pointsDiff > 6 ? 2 : 1) : -1;
-
+    if (pointsDiff !== 0) {
+      this.howLongStaticScore = 0;
+    } else {
+      this.howLongStaticScore += 1;
+    }
+    const shapeSelectedLength = this.game.shapes[shapeIndex].length;
     const done = this.game.isGameOver();
+    const reward = done
+      ? -2
+      : pointsDiff > 0
+      ? (pointsDiff - (shapeSelectedLength - 2)) / 6
+      : Math.max(-0.1 * this.howLongStaticScore, -1);
+
+    if (done) {
+      console.log(
+        "%c GAME OVER! ",
+        "background: #222; color: #f00;  font-weight: bold; font-size: 16px;"
+      );
+    }
+
     this.previousScore = score;
     return { nextState, reward, done };
   }

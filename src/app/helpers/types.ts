@@ -1,4 +1,6 @@
 import { colors } from "./constants";
+import * as tfType from "@tensorflow/tfjs";
+
 export interface TriangleState {
   row: number;
   col: number;
@@ -21,3 +23,11 @@ type _FixedLengthArray<
   L extends number,
   R extends unknown[]
 > = R["length"] extends L ? R : _FixedLengthArray<T, L, [T, ...R]>;
+
+export type Memory = {
+  state: [tfType.Tensor, tfType.Tensor];
+  action: tfType.Tensor;
+  reward: number;
+  nextState: [tfType.Tensor, tfType.Tensor];
+  done: boolean;
+};
