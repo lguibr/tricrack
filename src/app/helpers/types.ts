@@ -1,5 +1,4 @@
-import { colors } from "./constants";
-import * as tfType from "@tensorflow/tfjs";
+import * as tf from "@tensorflow/tfjs";
 
 export interface TriangleState {
   row: number;
@@ -10,28 +9,13 @@ export interface TriangleState {
   neighborhoodZ: TriangleState | null;
 }
 
-type Colors = (typeof colors)[number];
+type Colors = string; // Update this based on your actual color type
 
-export type FixedLengthArray<T, L extends number> = L extends L
-  ? number extends L
-    ? T[]
-    : _FixedLengthArray<T, L, []>
-  : never;
-
-type _FixedLengthArray<
-  T,
-  L extends number,
-  R extends unknown[]
-> = R["length"] extends L ? R : _FixedLengthArray<T, L, [T, ...R]>;
-
-export type TensorGameState = [
-  [tfType.Tensor, tfType.Tensor, tfType.Tensor, tfType.Tensor],
-  [tfType.Tensor, tfType.Tensor, tfType.Tensor]
-];
+export type TensorGameState = tf.Tensor;
 
 export type Memory = {
   state: TensorGameState;
-  action: tfType.Tensor;
+  action: number;
   reward: number;
   nextState: TensorGameState;
   done: boolean;

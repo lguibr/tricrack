@@ -1,3 +1,5 @@
+// File: GameTrainer.tsx
+
 import React, { useEffect, useRef } from "react";
 import { GameEnvironment } from "../learn/GameEnvironment";
 import { DQNAgent } from "../learn/DQNAgent";
@@ -6,15 +8,13 @@ import {
   movementsBatchSize,
   replayEveryNSteps,
   trainingEpisodes,
+  actionSize,
 } from "../learn/configs";
-import * as tfType from "@tensorflow/tfjs";
-import * as tfvis from "@tensorflow/tfjs-vis"; // Import tfjs-vis
+import * as tf from "@tensorflow/tfjs";
+import * as tfvis from "@tensorflow/tfjs-vis";
 import { styled } from "styled-components";
 
-const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
-  game,
-  tf,
-}) => {
+const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
   const [iteration, setIteration] = React.useState(0);
   const agentRef = useRef<DQNAgent | null>(null);
   const gameEnvironmentRef = useRef<GameEnvironment | null>(null);
@@ -23,6 +23,7 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
   const lossValues = useRef<{ x: number; y: number }[]>([]);
   const explorationRateValues = useRef<{ x: number; y: number }[]>([]);
   const scoreValues = useRef<{ x: number; y: number }[]>([]);
+  const totalRewardValues = useRef<{ x: number; y: number }[]>([]);
   const actionTimeValues = useRef<{ x: number; y: number }[]>([]);
   const replayTimeValues = useRef<{ x: number; y: number }[]>([]);
 
@@ -34,128 +35,146 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
 
     // Create and configure DQNAgent only once
     if (!agentRef.current) {
-      const actionSize = 8 * 15 + 3;
-      if (tf != null) {
-        agentRef.current = new DQNAgent(actionSize, tf);
-      }
+      agentRef.current = new DQNAgent(actionSize);
     }
 
     const trainAgent = async () => {
       if (haveInstantiated.current) return;
       haveInstantiated.current = true;
-      const dqnAgent = agentRef.current;
-      const gameEnvironment = gameEnvironmentRef.current;
+      const dqnAgent = agentRef.current!;
+      const gameEnvironment = gameEnvironmentRef.current!;
       if (dqnAgent && gameEnvironment) {
         for (let iteration = 0; iteration < trainingEpisodes; iteration++) {
           setIteration(iteration + 1);
           let state = gameEnvironment.reset();
           let done = false;
+          let totalReward = 0;
+
           while (!done) {
-            const currentMemoryLength = dqnAgent.memory.length;
-            const action = dqnAgent.act(
-              state,
-              gameEnvironment.getTriangles(),
-              gameEnvironment.getShapes(),
-              gameEnvironment.getValidPositions()
-            );
+            const validActionsMask = gameEnvironment.getValidActionsMask();
+            const action = dqnAgent.act(state, validActionsMask);
             const {
               nextState,
               reward,
               done: isDone,
             } = gameEnvironment.step(action);
             done = isDone;
+            totalReward += reward;
+
             dqnAgent.remember(state, action, reward, nextState, isDone);
             state = nextState;
 
-            if (currentMemoryLength % replayEveryNSteps === 0) {
-              await dqnAgent.replay(movementsBatchSize);
+            if (dqnAgent.memory.length % replayEveryNSteps === 0) {
+              await dqnAgent.replay();
+              await tf.nextFrame(); // Yield control to the browser
             }
+
+            // Dispose tensors to prevent memory leaks
+            validActionsMask.dispose();
           }
 
-          await dqnAgent.replay(movementsBatchSize);
-          gameEnvironment.reset();
+          await dqnAgent.replay();
+          await tf.nextFrame(); // Yield control to the browser
+
+          // Update charts BEFORE resetting the game
+          const currentAverageLoss = dqnAgent.averageLoss || 0;
+          const currentExplorationRate = dqnAgent.explorationRate || 0;
+          const currentScore = game.score || 0; // Capture the score before reset
+          const currentActionTime = dqnAgent.actionTimes.slice(-1)[0] || 0;
+          const currentReplayTime = dqnAgent.replayTimes.slice(-1)[0] || 0;
+
+          // Push metrics to chart data
+          lossValues.current.push({ x: iteration, y: currentAverageLoss });
+          explorationRateValues.current.push({
+            x: iteration,
+            y: currentExplorationRate,
+          });
+          scoreValues.current.push({ x: iteration, y: currentScore });
+          totalRewardValues.current.push({ x: iteration, y: totalReward });
+          actionTimeValues.current.push({
+            x: iteration,
+            y: currentActionTime,
+          });
+          replayTimeValues.current.push({
+            x: iteration,
+            y: currentReplayTime,
+          });
+
+          // Render charts
+          tfvis.render.linechart(
+            { name: "Loss Over Time", tab: "Training Metrics" },
+            { values: [lossValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Loss",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Exploration Rate Over Time", tab: "Training Metrics" },
+            { values: [explorationRateValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Exploration Rate",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Score Over Time", tab: "Training Metrics" },
+            { values: [scoreValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Score",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Total Reward Over Time", tab: "Training Metrics" },
+            { values: [totalRewardValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Total Reward",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Action Time Over Time", tab: "Performance Metrics" },
+            { values: [actionTimeValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Action Time (ms)",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Replay Time Over Time", tab: "Performance Metrics" },
+            { values: [replayTimeValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Replay Time (ms)",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          gameEnvironment.reset(); // Now reset the game
+          await tf.nextFrame(); // Yield control to the browser
         }
       }
     };
 
     trainAgent();
-  }, [game, tf]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentAverageLoss = agentRef.current?.averageLoss || 0;
-      const currentExplorationRate = agentRef.current?.explorationRate || 0;
-      const currentScore = game.score || 0;
-      const currentActionTime = agentRef.current?.actionTimes.slice(-1)[0] || 0;
-      const currentReplayTime = agentRef.current?.replayTimes.slice(-1)[0] || 0;
-
-      lossValues.current.push({ x: iteration, y: currentAverageLoss });
-      explorationRateValues.current.push({
-        x: iteration,
-        y: currentExplorationRate,
-      });
-      scoreValues.current.push({ x: iteration, y: currentScore });
-      actionTimeValues.current.push({ x: iteration, y: currentActionTime });
-      replayTimeValues.current.push({ x: iteration, y: currentReplayTime });
-
-      tfvis.render.linechart(
-        { name: "Loss Over Time" },
-        { values: [lossValues.current] },
-        {
-          xLabel: "Iteration",
-          yLabel: "Loss",
-          width: 500,
-          height: 100,
-        }
-      );
-
-      tfvis.render.linechart(
-        { name: "Exploration Rate Over Time" },
-        { values: [explorationRateValues.current] },
-        {
-          xLabel: "Iteration",
-          yLabel: "Exploration Rate",
-          width: 500,
-          height: 100,
-        }
-      );
-
-      tfvis.render.linechart(
-        { name: "Score Over Time" },
-        { values: [scoreValues.current] },
-        {
-          xLabel: "Iteration",
-          yLabel: "Score",
-          width: 500,
-          height: 100,
-        }
-      );
-
-      tfvis.render.linechart(
-        { name: "Action Time Over Time" },
-        { values: [actionTimeValues.current] },
-        {
-          xLabel: "Iteration",
-          yLabel: "Action Time (ms)",
-          width: 500,
-          height: 100,
-        }
-      );
-
-      tfvis.render.linechart(
-        { name: "Replay Time Over Time" },
-        { values: [replayTimeValues.current] },
-        {
-          xLabel: "Iteration",
-          yLabel: "Replay Time (ms)",
-          width: 500,
-          height: 100,
-        }
-      );
-    }, 100); // Update the charts every second
-
-    return () => clearInterval(interval);
-  }, [iteration, game.score]);
+  }, [game]);
 
   return (
     <>
@@ -170,29 +189,16 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
         }}
       >
         <h2>
-          Training the agent game {iteration} of {trainingEpisodes} ...
+          Training the agent: iteration {iteration} of {trainingEpisodes}...
         </h2>
       </div>
       <FloatingContent>
-        <div
-          id="loss-chart"
-          style={{ position: "absolute", top: "10px", right: "10px" }}
-        ></div>
-        <div
-          style={{ position: "absolute", top: "320px", right: "10px" }}
-        ></div>
-        <div
-          id="score-chart"
-          style={{ position: "absolute", top: "630px", right: "10px" }}
-        ></div>
-        <div
-          id="action-time-chart"
-          style={{ position: "absolute", top: "940px", right: "10px" }}
-        ></div>
-        <div
-          id="replay-time-chart"
-          style={{ position: "absolute", top: "1250px", right: "10px" }}
-        ></div>
+        <div id="loss-chart"></div>
+        <div id="exploration-rate-chart"></div>
+        <div id="score-chart"></div>
+        <div id="total-reward-chart"></div>
+        <div id="action-time-chart"></div>
+        <div id="replay-time-chart"></div>
       </FloatingContent>
     </>
   );
@@ -202,10 +208,12 @@ export default GameTrainer;
 
 const FloatingContent = styled.div`
   position: absolute;
-  bottom: 0px;
-  right: 0px;
+  top: 60px;
+  right: 10px;
   padding: 10px;
   border-radius: 5px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  max-height: 90vh;
+  overflow-y: auto;
   color: black;
+  z-index: 1000;
 `;

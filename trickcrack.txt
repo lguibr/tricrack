@@ -16,102 +16,6 @@ export default function Home() {
 }
 
 
-File: globals.css
-:root {
-  --max-width: 1100px;
-  --border-radius: 12px;
-  --font-mono: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono",
-    "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro",
-    "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
-
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-
-  --primary-glow: conic-gradient(from 180deg at 50% 50%,
-      #16abff33 0deg,
-      #0885ff33 55deg,
-      #54d6ff33 120deg,
-      #0071ff33 160deg,
-      transparent 360deg);
-  --secondary-glow: radial-gradient(rgba(255, 255, 255, 1),
-      rgba(255, 255, 255, 0));
-
-  --tile-start-rgb: 239, 245, 249;
-  --tile-end-rgb: 228, 232, 233;
-  --tile-border: conic-gradient(#00000080,
-      #00000040,
-      #00000030,
-      #00000020,
-      #00000010,
-      #00000010,
-      #00000080);
-
-  --callout-rgb: 238, 240, 241;
-  --callout-border-rgb: 172, 175, 176;
-  --card-rgb: 180, 185, 188;
-  --card-border-rgb: 131, 134, 135;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-
-    --primary-glow: radial-gradient(rgba(1, 65, 255, 0.4), rgba(1, 65, 255, 0));
-    --secondary-glow: linear-gradient(to bottom right,
-        rgba(1, 65, 255, 0),
-        rgba(1, 65, 255, 0),
-        rgba(1, 65, 255, 0.3));
-
-    --tile-start-rgb: 2, 13, 46;
-    --tile-end-rgb: 2, 5, 19;
-    --tile-border: conic-gradient(#ffffff80,
-        #ffffff40,
-        #ffffff30,
-        #ffffff20,
-        #ffffff10,
-        #ffffff10,
-        #ffffff80);
-
-    --callout-rgb: 20, 20, 20;
-    --callout-border-rgb: 108, 108, 108;
-    --card-rgb: 100, 100, 100;
-    --card-border-rgb: 200, 200, 200;
-  }
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-}
-
 File: manifest.ts
 import { MetadataRoute } from "next";
 
@@ -269,6 +173,1010 @@ export default function RootLayout({
 }
 
 
+File: components/HexGrid.tsx
+import "@tensorflow/tfjs-backend-webgpu";
+import * as tfjsWasm from "@tensorflow/tfjs-backend-wasm";
+
+import React, { useEffect, useState } from "react";
+import HexGridRender from "./HexGridRender";
+import { useHexGrid } from "../contexts/HexGridContext";
+import GameTrainer from "./GameTrainer";
+import { intervalToForceUpdate } from "../learn/configs";
+
+import * as tf from "@tensorflow/tfjs";
+import { styled } from "styled-components";
+
+const HexGrid: React.FC = () => {
+  const { game } = useHexGrid();
+  const [forceUpdate, setForceUpdate] = useState(0);
+  const tfRef = React.useRef<typeof tf | null>(null);
+  const [training, setTraining] = useState(false);
+
+  const clearStorage = async () => {
+    // Clear localStorage
+    localStorage.clear();
+    // Clear indexedDB
+    const databases = await indexedDB.databases();
+    databases.forEach((db) => {
+      indexedDB.deleteDatabase(db.name!);
+    });
+    console.log("Cleared indexDB and localStorage");
+  };
+
+  useEffect(() => {
+    const debounced = setTimeout(() => {
+      const loadTf = async () => {
+        if (tfRef.current) return;
+        console.group("Loading TensorFlow");
+
+        await tfjsWasm.setWasmPaths(
+          `https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@${tfjsWasm.version_wasm}/dist/`
+        );
+
+        await tf.setBackend("webgpu");
+
+        await tf.ready();
+        const currentBackend = await tf.getBackend();
+        console.log(`TensorFlow is ready with backend: ${currentBackend}`);
+        console.groupEnd();
+        tfRef.current = tf;
+      };
+
+      if (tfRef.current == null) loadTf();
+    }, 1);
+    const interval = setInterval(() => {
+      setForceUpdate((prev) => prev + 1);
+    }, intervalToForceUpdate);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(debounced);
+    };
+  }, []);
+
+  if (!game || tfRef.current == null) return null;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <HexGridRender frame={forceUpdate} game={game} />
+      <Button onClick={() => setTraining((p) => !p)}>
+        {training ? "Stop Training" : "Start Training"}
+      </Button>
+      <ClearButton onClick={clearStorage}>Clear Storage</ClearButton>
+
+      {training && <GameTrainer tf={tfRef.current} game={game} />}
+    </div>
+  );
+};
+
+export default HexGrid;
+
+const Button = styled.button`
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #ff006e;
+  color: white;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  &:hover {
+    background-color: #ff0055;
+  }
+`;
+
+const ClearButton = styled.button`
+  position: absolute;
+  bottom: 50px;
+  right: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #ff006e;
+  color: white;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  &:hover {
+    background-color: #ff0055;
+  }
+`;
+
+
+File: components/Triangle.tsx
+import { styled } from "styled-components";
+
+export const Triangle = styled.div<{
+  $x: number;
+  $y: number;
+  $size: number;
+  $triangleHeight: number;
+  $isUp: boolean;
+  $color?: string | null;
+  $isHovering?: string | null;
+  $zIndex: number;
+  $rowIndex: number;
+}>`
+  position: absolute;
+  width: 0;
+  height: 0;
+  left: ${({ $x }) => $x}px;
+  top: ${({ $y, $rowIndex }) => $y + $rowIndex * 4}px;
+  z-index: ${({ $zIndex }) => $zIndex};
+  pointer-events: auto;
+  border-radius: 5%;
+  border-left: ${({ $size }) => $size / 2 - 3}px solid transparent;
+  border-right: ${({ $size }) => $size / 2 - 3}px solid transparent;
+  ${({ $isUp, $triangleHeight, $color, $isHovering }) =>
+    $isUp
+      ? `
+    border-bottom: ${$triangleHeight}px solid ${
+          $isHovering ? $isHovering : $color || "gray"
+        };
+  `
+      : `
+    border-top: ${$triangleHeight}px solid ${
+          $isHovering ? $isHovering : $color || "gray"
+        };
+  `}
+`;
+
+
+File: components/HexGridRender.tsx
+// src/app/components/HexGridRender.tsx
+"use client";
+import React, {
+  MouseEventHandler,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  calculatePosition,
+  calculateRowColFromPosition,
+  isTriangleUp,
+} from "../helpers/triangles";
+import {
+  colsPerRowGrid,
+  triangleSizeGrid,
+  gridSize,
+  gridPadding,
+  colors,
+  trianglesShapeSize,
+} from "../helpers/constants";
+import { TriangleState } from "../helpers/types";
+import styled from "styled-components";
+import { Triangle } from "./Triangle";
+import ShapeRenderer from "./ShapeRenderer";
+import Modal from "./Modal";
+import Image from "next/image";
+import Game from "../game";
+
+const offSetY = 0;
+
+const HexGridRender: React.FC<{ game: Game; frame: number }> = ({
+  game,
+}) => {
+  const [draggedShape, setDraggedShape] = useState<{
+    shape: TriangleState[] | null;
+    index: number | null;
+  }>({ shape: null, index: null });
+  const gridRef = useRef<HTMLDivElement>(null);
+  const gridPosition = gridRef.current?.getBoundingClientRect();
+
+  const motionOffset = triangleSizeGrid / 5;
+
+  const offsets = useMemo(
+    () => [
+      [0, 0],
+      [0, -motionOffset],
+      [0, motionOffset],
+      [-motionOffset, 0],
+      [motionOffset, 0],
+      [-motionOffset, -motionOffset],
+      [-motionOffset, motionOffset],
+      [motionOffset, -motionOffset],
+      [motionOffset, motionOffset],
+      [2 * motionOffset, 0],
+      [-2 * motionOffset, 0],
+      [0, 2 * motionOffset],
+      [0, -2 * motionOffset],
+      [motionOffset, 2 * motionOffset],
+      [motionOffset, -2 * motionOffset],
+      [-motionOffset, 2 * motionOffset],
+      [-motionOffset, -2 * motionOffset],
+      [2 * motionOffset, motionOffset],
+      [2 * motionOffset, -motionOffset],
+      [-2 * motionOffset, motionOffset],
+      [-2 * motionOffset, -motionOffset],
+      [2 * motionOffset, 2 * motionOffset],
+      [2 * motionOffset, -2 * motionOffset],
+      [-2 * -motionOffset, 2 * motionOffset],
+      [-2 * -motionOffset, -2 * motionOffset],
+    ],
+    [motionOffset]
+  );
+  const [gameOver, setGameOver] = useState(false);
+  const [hoveredTriangles, setHoveredTriangles] = useState<Set<string>>(
+    new Set()
+  );
+
+  const [touchHandled, setTouchHandled] = useState(false);
+
+  const handleTouchStart = () => {
+    setTouchHandled(true);
+  };
+
+  const handleClick =
+    (callback: (e: MouseEvent) => void) => (e: MouseEvent) => {
+      if (touchHandled) {
+        setTouchHandled(false);
+        return;
+      }
+      callback(e);
+    };
+
+  useEffect(() => {
+    const isGameOver = game.isGameOver();
+    if (isGameOver) {
+      setGameOver(true);
+    }
+  }, [game]);
+
+  const handleDragStart = useCallback(
+    (index: number, _: React.DragEvent, shape: TriangleState[]) => {
+      setDraggedShape({ shape, index });
+    },
+    []
+  );
+
+  const handleDragOver = useCallback(
+    (event: React.DragEvent) => {
+      offsets.forEach(([ox, oy]) => {
+        const x = event.clientX - (gridPosition?.left || 0) + ox;
+        const y = event.clientY - (gridPosition?.top || 0) - offSetY + oy;
+
+        const { col, row } = calculateRowColFromPosition(
+          x,
+          y,
+          triangleSizeGrid,
+          gridPadding
+        );
+
+        const targetTriangle = game.triangles.find(
+          (t) => t.row === row && t.col === col
+        );
+
+        if (targetTriangle) {
+          const { newHoveredTriangles, isValid } =
+            game.calculateHoveredAndValidPositions(
+              event,
+              targetTriangle,
+              false,
+              draggedShape.shape
+            ) ?? {};
+
+          if (isValid && newHoveredTriangles) {
+            setHoveredTriangles(newHoveredTriangles);
+            return;
+          }
+        }
+      });
+    },
+    [draggedShape.shape, game, gridPosition?.left, gridPosition?.top, offsets]
+  );
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      let placed = false;
+      offsets.forEach(([ox, oy]) => {
+        if (placed) return;
+        const x = event.clientX - (gridPosition?.left || 0) + ox;
+        const y = event.clientY - (gridPosition?.top || 0) - offSetY + oy;
+
+        const { col, row } = calculateRowColFromPosition(
+          x,
+          y,
+          triangleSizeGrid,
+          gridPadding
+        );
+
+        const targetTriangle = game.triangles.find(
+          (t) => t.row === row && t.col === col
+        );
+
+        if (targetTriangle) {
+          const { validPositions, isValid } =
+            game.calculateHoveredAndValidPositions(
+              event,
+              targetTriangle,
+              true,
+              draggedShape.shape
+            ) ?? {};
+          if (
+            isValid &&
+            draggedShape.index !== null &&
+            draggedShape.shape != null &&
+            draggedShape.shape.length > 0
+          ) {
+            const color = draggedShape.shape[0].color;
+            placed = true;
+            game.addToScore(draggedShape.shape.length);
+            game.setTriangles((prevTriangles) =>
+              prevTriangles.map((triangle) =>
+                validPositions?.some(
+                  (pos) => pos.row === triangle.row && pos.col === triangle.col
+                )
+                  ? {
+                      ...triangle,
+                      color,
+                    }
+                  : triangle
+              )
+            );
+            game.setShape(draggedShape.index, []);
+          }
+        }
+        setDraggedShape({ shape: null, index: null });
+        setHoveredTriangles(new Set());
+      });
+    },
+    [
+      offsets,
+      gridPosition?.left,
+      gridPosition?.top,
+      game,
+      draggedShape.index,
+      draggedShape.shape,
+    ]
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setHoveredTriangles(new Set());
+  }, []);
+
+  const reset = useCallback(() => {
+    setGameOver(false);
+    game.resetGame();
+  }, [game]);
+
+  const undoLastMove = useCallback(() => {
+    setGameOver(false);
+    game.undo();
+  }, [game]);
+
+  return (
+    <Container
+      onDrop={(event) => handleDrop(event)}
+      onDragOver={(event) => handleDragOver(event)}
+      onMouseUp={() => {
+        setDraggedShape({ shape: null, index: null });
+        setHoveredTriangles(new Set());
+      }}
+      onDragLeave={handleDragLeave}
+    >
+      <Modal open={gameOver} setOpen={setGameOver}>
+        <ModalContent>
+          <Image
+            src="/favicon.png"
+            alt="Logo Tricrack"
+            width={150}
+            height={150}
+          />
+          <h1>Game Over</h1>
+          <ModalButtons>
+            <Image
+              src="/restart.png"
+              alt="restart game"
+              width={50}
+              height={50}
+              onClick={
+                handleClick((e) => {
+                  e.preventDefault();
+                  reset();
+                }) as unknown as MouseEventHandler
+              }
+              onTouchStart={handleTouchStart}
+              style={{ cursor: "pointer" }}
+            />
+
+            <Image
+              src="/undo.png"
+              alt="undo movement"
+              width={50}
+              height={50}
+              style={{ cursor: "pointer" }}
+              onClick={
+                handleClick((e) => {
+                  e.preventDefault();
+                  undoLastMove();
+                }) as unknown as MouseEventHandler
+              }
+              onTouchStart={handleTouchStart}
+            />
+          </ModalButtons>
+        </ModalContent>
+      </Modal>
+      <Content>
+        <Header>
+          <Image
+            src="/restart.png"
+            alt="restart game"
+            width={50}
+            height={50}
+            onClick={
+              handleClick((e) => {
+                e.preventDefault();
+                reset();
+              }) as unknown as MouseEventHandler
+            }
+            onTouchStart={handleTouchStart}
+            style={{ cursor: "pointer" }}
+          />
+          <Image
+            src="/favicon.png"
+            alt="Logo Tricrack"
+            width={100}
+            height={100}
+          />
+          <Image
+            src="/undo.png"
+            alt="undo movement"
+            width={50}
+            height={50}
+            style={{ cursor: "pointer" }}
+            onClick={
+              handleClick((e) => {
+                e.preventDefault();
+                undoLastMove();
+              }) as unknown as MouseEventHandler
+            }
+            onTouchStart={handleTouchStart}
+          />
+        </Header>
+
+        <Score>
+          <h2>▶️</h2>
+          <CurrentScore>{game.score}</CurrentScore>
+          <h2>⭐</h2>
+          <BestScore>{game.currentHighScore}</BestScore>
+        </Score>
+      </Content>
+      <GridContainer ref={gridRef}>
+        {game.triangles.map((triangle, index) => {
+          const { x, y, triangleHeight } = calculatePosition(
+            triangle,
+            triangleSizeGrid,
+            gridPadding
+          );
+          const isUp = isTriangleUp(triangle, colsPerRowGrid);
+          const zIndex = colsPerRowGrid[triangle.row] - triangle.col;
+          const isHovered = hoveredTriangles.has(
+            `${triangle.row}-${triangle.col}`
+          );
+
+          return (
+            <>
+              <Triangle
+                key={`grid-triangle-${triangle.row}-${
+                  triangle.col
+                }-grid-${Date.now()}`}
+                $x={x}
+                $y={y}
+                $size={triangleSizeGrid}
+                $triangleHeight={triangleHeight}
+                $isUp={isUp}
+                $color={triangle.color || null}
+                $zIndex={zIndex}
+                $rowIndex={triangle.row}
+                $isHovering={isHovered ? draggedShape.shape?.[0].color : null}
+              ></Triangle>
+              <div
+                style={{
+                  zIndex: 9999999999,
+                  color: "white",
+                  position: "absolute",
+                  top: `${
+                    y + ((trianglesShapeSize / 2) * (triangle.row + 1)) / 4
+                  }px`,
+                  left: `${x + trianglesShapeSize / 4}px`,
+                }}
+              >
+                {index}
+              </div>
+            </>
+          );
+        })}
+      </GridContainer>
+      <OptionsContainer>
+        {game.shapes?.map((shape, index) => (
+          <Option
+            key={index}
+            onClick={() => {
+              console.log(
+                JSON.stringify({
+                  shape: shape.map(({ col, color, row }) => ({
+                    col,
+                    row,
+                    color,
+                  })),
+                })
+              );
+            }}
+          >
+            <ShapeRenderer
+              shape={shape}
+              onDragStart={(event) => handleDragStart(index, event, shape)}
+            />
+          </Option>
+        ))}
+      </OptionsContainer>
+    </Container>
+  );
+};
+
+export default HexGridRender;
+
+const Container = styled.div`
+  display: grid;
+  position: relative;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
+  justify-items: center;
+`;
+
+const GridContainer = styled.div`
+  position: relative;
+  height: ${gridSize}px;
+  width: ${gridSize}px;
+`;
+
+const OptionsContainer = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  justify-content: space-around;
+  align-items: center;
+`;
+
+const Header = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+`;
+
+const Option = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  height: 100%;
+  cursor: pointer;
+`;
+
+const Content = styled.div`
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+`;
+
+const ModalContent = styled(Content)`
+  border-radius: 8px;
+  border: 1px solid #222;
+  gap: 1rem;
+  padding: 1rem;
+  padding-top: 0rem;
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background-color: #222;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+`;
+
+const Score = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  padding: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+`;
+
+const CurrentScore = styled.h1`
+  color: ${colors[colors.length - 1]};
+`;
+const BestScore = styled.h1`
+  color: ${colors[0]};
+`;
+
+const ModalButtons = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+`;
+
+
+File: components/Modal.tsx
+import React from "react";
+import styled from "styled-components";
+
+// Styled components
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  position: relative;
+  padding: 20px;
+  background: black;
+  border-radius: 8px;
+  max-width: 500px;
+  z-index: 1001;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+`;
+
+interface ModalProps {
+  children: React.ReactNode;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
+
+const Modal: React.FC<ModalProps> = ({ children, open, setOpen }) => {
+  if (!open) return null;
+
+  return (
+    <ModalOverlay onClick={() => setOpen(false)}>
+      <ModalContent onClick={(e) => e.stopPropagation()}>
+        {children}
+      </ModalContent>
+    </ModalOverlay>
+  );
+};
+
+export default Modal;
+
+
+File: components/ShapeRenderer.tsx
+"use client";
+import React from "react";
+import { TriangleState } from "../helpers/types";
+import { calculatePosition } from "../helpers/triangles";
+import { isTriangleUp } from "../helpers/triangles";
+import styled from "styled-components";
+import { Triangle } from "./Triangle";
+import {
+  colsPerRowShape,
+  shapePadding,
+  shapeSize,
+  trianglesShapeSize,
+} from "../helpers/constants";
+
+const ShapeContainer = styled.div`
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  width: ${shapeSize}px;
+  height: ${shapeSize}px;
+  justify-content: center;
+  align-items: center;
+`;
+
+// TODO translate the shape being dragged so it follows the cursor in perspective to the
+// first triangle created used to set the shape
+
+interface ShapeRendererProps {
+  shape: TriangleState[];
+  onDragStart: (event: React.DragEvent, shape: TriangleState[]) => void;
+}
+
+const ShapeRenderer: React.FC<ShapeRendererProps> = ({
+  shape,
+  onDragStart,
+}) => {
+  return (
+    <ShapeContainer
+      draggable
+      onDragStart={(event) => onDragStart(event, shape)}
+    >
+      {shape.map((triangle, index) => {
+        const { x, y, triangleHeight } = calculatePosition(
+          triangle,
+          trianglesShapeSize,
+          shapePadding
+        );
+        const isUp = isTriangleUp(triangle, colsPerRowShape);
+        const zIndex = colsPerRowShape[triangle.row] - triangle.col;
+
+        return (
+          <>
+            <Triangle
+              key={`shape-triangle-${triangle.row}-${
+                triangle.col
+              }-${index}-shape-${Date.now()}`}
+              $x={x}
+              $y={y}
+              $size={trianglesShapeSize}
+              $triangleHeight={triangleHeight}
+              $isUp={isUp}
+              $color={triangle.color}
+              $zIndex={zIndex}
+              $rowIndex={triangle.row}
+              $isHovering={triangle.color || null}
+              onClick={() => {}}
+            ></Triangle>
+            <div
+              style={{
+                zIndex: 9999999999,
+                color: "white",
+                position: "absolute",
+                top: `${y + trianglesShapeSize / 4}px`,
+                left: `${x + trianglesShapeSize / 4}px`,
+              }}
+            >
+              {index}
+            </div>
+          </>
+        );
+      })}
+    </ShapeContainer>
+  );
+};
+
+export default ShapeRenderer;
+
+
+File: components/GameTrainer.tsx
+// File: GameTrainer.tsx
+
+import React, { useEffect, useRef } from "react";
+import { GameEnvironment } from "../learn/GameEnvironment";
+import { DQNAgent } from "../learn/DQNAgent";
+import Game from "../game";
+import {
+  movementsBatchSize,
+  replayEveryNSteps,
+  trainingEpisodes,
+  actionSize,
+} from "../learn/configs";
+import * as tf from "@tensorflow/tfjs";
+import * as tfvis from "@tensorflow/tfjs-vis";
+import { styled } from "styled-components";
+
+const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
+  const [iteration, setIteration] = React.useState(0);
+  const agentRef = useRef<DQNAgent | null>(null);
+  const gameEnvironmentRef = useRef<GameEnvironment | null>(null);
+  const haveInstantiated = useRef(false);
+
+  const lossValues = useRef<{ x: number; y: number }[]>([]);
+  const explorationRateValues = useRef<{ x: number; y: number }[]>([]);
+  const scoreValues = useRef<{ x: number; y: number }[]>([]);
+  const totalRewardValues = useRef<{ x: number; y: number }[]>([]);
+  const actionTimeValues = useRef<{ x: number; y: number }[]>([]);
+  const replayTimeValues = useRef<{ x: number; y: number }[]>([]);
+
+  useEffect(() => {
+    // Ensure GameEnvironment is created only once
+    if (!gameEnvironmentRef.current) {
+      gameEnvironmentRef.current = new GameEnvironment(game);
+    }
+
+    // Create and configure DQNAgent only once
+    if (!agentRef.current) {
+      agentRef.current = new DQNAgent(actionSize);
+    }
+
+    const trainAgent = async () => {
+      if (haveInstantiated.current) return;
+      haveInstantiated.current = true;
+      const dqnAgent = agentRef.current!;
+      const gameEnvironment = gameEnvironmentRef.current!;
+      if (dqnAgent && gameEnvironment) {
+        for (let iteration = 0; iteration < trainingEpisodes; iteration++) {
+          setIteration(iteration + 1);
+          let state = gameEnvironment.reset();
+          let done = false;
+          let totalReward = 0;
+
+          while (!done) {
+            const validActionsMask = gameEnvironment.getValidActionsMask();
+            const action = dqnAgent.act(state, validActionsMask);
+            const {
+              nextState,
+              reward,
+              done: isDone,
+            } = gameEnvironment.step(action);
+            done = isDone;
+            totalReward += reward;
+
+            dqnAgent.remember(state, action, reward, nextState, isDone);
+            state = nextState;
+
+            if (dqnAgent.memory.length % replayEveryNSteps === 0) {
+              await dqnAgent.replay();
+              await tf.nextFrame(); // Yield control to the browser
+            }
+
+            // Dispose tensors to prevent memory leaks
+            validActionsMask.dispose();
+          }
+
+          await dqnAgent.replay();
+          await tf.nextFrame(); // Yield control to the browser
+
+          // Update charts BEFORE resetting the game
+          const currentAverageLoss = dqnAgent.averageLoss || 0;
+          const currentExplorationRate = dqnAgent.explorationRate || 0;
+          const currentScore = game.score || 0; // Capture the score before reset
+          const currentActionTime = dqnAgent.actionTimes.slice(-1)[0] || 0;
+          const currentReplayTime = dqnAgent.replayTimes.slice(-1)[0] || 0;
+
+          // Push metrics to chart data
+          lossValues.current.push({ x: iteration, y: currentAverageLoss });
+          explorationRateValues.current.push({
+            x: iteration,
+            y: currentExplorationRate,
+          });
+          scoreValues.current.push({ x: iteration, y: currentScore });
+          totalRewardValues.current.push({ x: iteration, y: totalReward });
+          actionTimeValues.current.push({
+            x: iteration,
+            y: currentActionTime,
+          });
+          replayTimeValues.current.push({
+            x: iteration,
+            y: currentReplayTime,
+          });
+
+          // Render charts
+          tfvis.render.linechart(
+            { name: "Loss Over Time", tab: "Training Metrics" },
+            { values: [lossValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Loss",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Exploration Rate Over Time", tab: "Training Metrics" },
+            { values: [explorationRateValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Exploration Rate",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Score Over Time", tab: "Training Metrics" },
+            { values: [scoreValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Score",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Total Reward Over Time", tab: "Training Metrics" },
+            { values: [totalRewardValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Total Reward",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Action Time Over Time", tab: "Performance Metrics" },
+            { values: [actionTimeValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Action Time (ms)",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          tfvis.render.linechart(
+            { name: "Replay Time Over Time", tab: "Performance Metrics" },
+            { values: [replayTimeValues.current] },
+            {
+              xLabel: "Iteration",
+              yLabel: "Replay Time (ms)",
+              width: 500,
+              height: 300,
+            }
+          );
+
+          gameEnvironment.reset(); // Now reset the game
+          await tf.nextFrame(); // Yield control to the browser
+        }
+      }
+    };
+
+    trainAgent();
+  }, [game]);
+
+  return (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          top: "20px",
+          zIndex: 9999,
+          color: "red",
+        }}
+      >
+        <h2>
+          Training the agent: iteration {iteration} of {trainingEpisodes}...
+        </h2>
+      </div>
+      <FloatingContent>
+        <div id="loss-chart"></div>
+        <div id="exploration-rate-chart"></div>
+        <div id="score-chart"></div>
+        <div id="total-reward-chart"></div>
+        <div id="action-time-chart"></div>
+        <div id="replay-time-chart"></div>
+      </FloatingContent>
+    </>
+  );
+};
+
+export default GameTrainer;
+
+const FloatingContent = styled.div`
+  position: absolute;
+  top: 60px;
+  right: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  max-height: 90vh;
+  overflow-y: auto;
+  color: black;
+  z-index: 1000;
+`;
+
+
 File: game/index.tsx
 import * as tf from "@tensorflow/tfjs";
 
@@ -282,6 +1190,7 @@ import {
 import { buildNewShape } from "../helpers/triangles";
 
 import { checkLineCollapse } from "./../game/collapse";
+import { actionSize } from "../learn/configs";
 
 import { isTriangleUp, initializeTrianglesGrid } from "../helpers/triangles";
 
@@ -656,86 +1565,22 @@ class Game {
     return emptyGrids;
   }
 
-  public getTensorGameState(): [
-    [tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor],
-    [tf.Tensor, tf.Tensor, tf.Tensor]
-  ] {
+  public getTensorGameState(): tf.Tensor {
+    const gridAvailability = this.getGridAvailability();
     const gridDownwards = this.getGriDownwards();
     const gridUpwards = this.getGridUpwards();
 
-    const gridAvailability = this.getGridAvailability();
-    const [fittableByShapeGrid1, fittableByShapeGrid2, fittableByShapeGrid3] =
-      this.getFittableByShapeGrid();
-
-    const availabilityChannel = combineMatrices([
+    const gridFeatures = combineMatrices([
       gridAvailability,
       gridDownwards,
       gridUpwards,
     ]);
 
-    const fitShape1Channel = combineMatrices([
-      fittableByShapeGrid1,
-      gridDownwards,
-      gridUpwards,
-    ]);
+    const gridTensor = tf
+      .tensor(gridFeatures, [8, 15, 3])
+      .reshape([1, 8, 15, 3]);
 
-    const fitShape2Channel = combineMatrices([
-      fittableByShapeGrid2,
-      gridDownwards,
-      gridUpwards,
-    ]);
-
-    const fitShape3Channel = combineMatrices([
-      fittableByShapeGrid3,
-      gridDownwards,
-      gridUpwards,
-    ]);
-
-    const shapesUpwardness = this.getShapesUpwardness();
-    const shapesDownwards = this.getShapesDownwards();
-
-    const [shape1Grid, shape2Grid, shape3Grid] = this.getShapesGrid();
-
-    const shape1Channel = combineMatrices([
-      shape1Grid,
-      shapesDownwards,
-      shapesUpwardness,
-    ]);
-    const shape2Channel = combineMatrices([
-      shape2Grid,
-      shapesDownwards,
-      shapesUpwardness,
-    ]);
-    const shape3Channel = combineMatrices([
-      shape3Grid,
-      shapesDownwards,
-      shapesUpwardness,
-    ]);
-
-    const gridsFeatures = [
-      availabilityChannel,
-      fitShape1Channel,
-      fitShape2Channel,
-      fitShape3Channel,
-    ];
-
-    const shapesFeatures = [shape1Channel, shape2Channel, shape3Channel];
-
-    const [
-      availabilityTensor,
-      fitShape1Tensor,
-      fitShape2Tensor,
-      fitShape3Tensor,
-    ] = gridsFeatures.map((grid) => tf.tensor(grid, this.getTensorGridShape()));
-
-    const [shape1Tensor, shape2Tensor, shape3Tensor] = shapesFeatures.map(
-      (shape) => tf.tensor(shape, this.getTensorShapeShape())
-    );
-
-    return [
-      [availabilityTensor, fitShape1Tensor, fitShape2Tensor, fitShape3Tensor],
-      [shape1Tensor, shape2Tensor, shape3Tensor],
-    ];
+    return gridTensor;
   }
 
   public isGameOver() {
@@ -810,6 +1655,9 @@ class Game {
           )
         );
         this.setShape(shapeIndex, []);
+        return true;
+      } else {
+        return false;
       }
     }
   }
@@ -1416,8 +2264,7 @@ function solveLinearSystem(
 
 
 File: helpers/types.ts
-import { colors } from "./constants";
-import * as tfType from "@tensorflow/tfjs";
+import * as tf from "@tensorflow/tfjs";
 
 export interface TriangleState {
   row: number;
@@ -1428,28 +2275,13 @@ export interface TriangleState {
   neighborhoodZ: TriangleState | null;
 }
 
-type Colors = (typeof colors)[number];
+type Colors = string; // Update this based on your actual color type
 
-export type FixedLengthArray<T, L extends number> = L extends L
-  ? number extends L
-    ? T[]
-    : _FixedLengthArray<T, L, []>
-  : never;
-
-type _FixedLengthArray<
-  T,
-  L extends number,
-  R extends unknown[]
-> = R["length"] extends L ? R : _FixedLengthArray<T, L, [T, ...R]>;
-
-export type TensorGameState = [
-  [tfType.Tensor, tfType.Tensor, tfType.Tensor, tfType.Tensor],
-  [tfType.Tensor, tfType.Tensor, tfType.Tensor]
-];
+export type TensorGameState = tf.Tensor;
 
 export type Memory = {
   state: TensorGameState;
-  action: tfType.Tensor;
+  action: number;
   reward: number;
   nextState: TensorGameState;
   done: boolean;
@@ -1577,22 +2409,19 @@ export const useHexGrid = () => {
 
 
 File: learn/DQNAgent.ts
-import * as tfType from "@tensorflow/tfjs";
+// File: learn/DQNAgent.ts
+
+import * as tf from "@tensorflow/tfjs";
 import {
   explorationDecay,
   learningRate,
   updateTargetNetworkEveryNSteps,
+  totalShapes,
+  totalPositions,
+  actionSize,
+  batchSize,
 } from "./configs";
-import { Memory, TensorGameState, TriangleState } from "../helpers/types";
-import {
-  getIndexFromColAndRow,
-  getRandomNotEmptyShapeElementIndex,
-} from "../helpers/triangles";
-import {
-  buildUnitByDepthCustom,
-  getRandomNumber,
-} from "../helpers/calculations";
-import { colsPerRowGridPadded, gridPadding } from "../helpers/constants";
+import { Memory, TensorGameState } from "../helpers/types";
 
 export class DQNAgent {
   public actionTimes: number[] = [];
@@ -1606,44 +2435,27 @@ export class DQNAgent {
   private explorationMin: number;
   private explorationDecay: number;
   private learningRate: number;
-  private model: tfType.LayersModel;
-  private targetModel: tfType.LayersModel;
+  private model: tf.LayersModel;
+  private targetModel: tf.LayersModel;
   private updateTargetNetworkFrequency: number;
   private trainStep: number;
   private totalLoss: number;
   private batchCount: number;
-  private tf: typeof tfType;
   private modelName: string;
   public averageLoss: number;
-  private unistByDepth: (index: number) => number;
-  private layersDepth: number;
-  private layersUnitsByDepths: number[];
-  private inputSize: number;
-  private dropoutRate: number;
-  constructor(actionSize: number, tf: typeof tfType) {
+
+  constructor(actionSize: number) {
     this.modelName = "indexeddb://DQNAgentModel";
-    this.layersDepth = 36;
-    this.actionSize = actionSize;
-    this.dropoutRate = 0.01;
-    this.inputSize = 4 * 8 * 15 + 3 * 2 * 3;
-    this.layersUnitsByDepths = buildUnitByDepthCustom(
-      Math.floor((this.inputSize * 3) / 2),
-      this.actionSize * 2,
-      this.inputSize * 3,
-      this.layersDepth
-    );
-    this.unistByDepth = (index) => this.layersUnitsByDepths[index];
-    this.tf = tf;
     this.actionSize = actionSize;
     this.memory = [];
-    this.discountFactor = 0.95;
+    this.discountFactor = 0.99;
     this.explorationRate = 1.0;
     this.explorationMin = 0.02;
-    this.replayBufferSize = 200_000_000;
+    this.replayBufferSize = 200_000;
     this.explorationDecay = explorationDecay;
     this.learningRate = learningRate;
-    this.model = this.buildModel(this.layersDepth, this.unistByDepth);
-    this.targetModel = this.buildModel(this.layersDepth, this.unistByDepth);
+    this.model = this.buildModel();
+    this.targetModel = this.buildModel();
     this.updateTargetNetworkFrequency = updateTargetNetworkEveryNSteps;
     this.trainStep = 0;
     this.totalLoss = 0;
@@ -1655,61 +2467,37 @@ export class DQNAgent {
     });
   }
 
-  buildModel(layerDepth: number, unitsFunction: (index: number) => number) {
-    const gridInputs = [];
-    for (let i = 0; i < 4; i++) {
-      gridInputs.push(this.tf.input({ shape: [8, 15, 3] }));
-    }
+  buildModel() {
+    const gridInputs = tf.input({ shape: [8, 15, 3], name: "grid_input" });
 
-    const shapeInputs = [];
-    for (let i = 0; i < 3; i++) {
-      shapeInputs.push(this.tf.input({ shape: [2, 3, 3] }));
-    }
+    // Convolutional layers for grid input
+    let x = tf.layers
+      .conv2d({ filters: 32, kernelSize: 3, activation: "relu" })
+      .apply(gridInputs) as tf.SymbolicTensor;
+    x = tf.layers.maxPooling2d({ poolSize: 2 }).apply(x) as tf.SymbolicTensor;
+    x = tf.layers
+      .conv2d({ filters: 64, kernelSize: 3, activation: "relu" })
+      .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.flatten().apply(x) as tf.SymbolicTensor;
 
-    const flatGridInputs = gridInputs.map(
-      (input) => this.tf.layers.flatten().apply(input) as tfType.SymbolicTensor
-    );
-
-    const flatShapeInputs = shapeInputs.map(
-      (input) => this.tf.layers.flatten().apply(input) as tfType.SymbolicTensor
-    );
-
-    const concat = this.tf.layers
-      .concatenate()
-      .apply([...flatGridInputs, ...flatShapeInputs]) as tfType.SymbolicTensor;
-
-    let x: tfType.SymbolicTensor = concat;
-
-    // Dynamically create dense layers based on layerDepth
-    for (let i = 0; i < layerDepth; i++) {
-      const units = unitsFunction(i);
-      x = this.tf.layers
-        .dense({
-          units: units,
-          activation: "relu",
-        })
-        .apply(x) as tfType.SymbolicTensor;
-
-      // x = this.tf.layers.batchNormalization().apply(x) as tfType.SymbolicTensor;
-      x = this.tf.layers
-        .dropout({ rate: this.dropoutRate })
-        .apply(x) as tfType.SymbolicTensor;
-    }
+    // Fully connected layers
+    x = tf.layers
+      .dense({ units: 512, activation: "relu" })
+      .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
+    x = tf.layers
+      .dense({ units: 256, activation: "relu" })
+      .apply(x) as tf.SymbolicTensor;
 
     // Output layer
-    const output = this.tf.layers
-      .dense({ units: this.actionSize, activation: "linear" })
-      .apply(x) as tfType.SymbolicTensor;
+    const output = tf.layers
+      .dense({ units: this.actionSize, activation: "linear", name: "output" })
+      .apply(x) as tf.SymbolicTensor;
 
-    const model = this.tf.model({
-      inputs: [...gridInputs, ...shapeInputs],
-      outputs: output,
-    });
-    model.summary();
-
+    const model = tf.model({ inputs: gridInputs, outputs: output });
     model.compile({
       loss: "meanSquaredError",
-      optimizer: this.tf.train.adam(this.learningRate),
+      optimizer: tf.train.adam(this.learningRate),
     });
 
     return model;
@@ -1717,176 +2505,106 @@ export class DQNAgent {
 
   remember(
     state: TensorGameState,
-    action: tfType.Tensor,
+    action: number,
     reward: number,
     nextState: TensorGameState,
     done: boolean
   ) {
-    this.memory = this.memory.filter((memory, index) => memory.reward != 0);
     if (this.memory.length >= this.replayBufferSize) this.memory.shift();
     this.memory.push({ state, action, reward, nextState, done });
   }
 
-  act(
-    state: TensorGameState,
-    triangles: TriangleState[],
-    shapes: TriangleState[][],
-    optionsByShape: { row: number; col: number }[][]
-  ): tfType.Tensor {
+  act(state: TensorGameState, validActionsMask: tf.Tensor): number {
     const start = Date.now(); // Start timing
-    const [gridInputs, shapeInputs] = state;
+    const gridInput = state;
 
-    const reshapedGridInputs = gridInputs.map((input) =>
-      input.reshape([1, 8, 15, 3])
-    );
-
-    const reshapedShapeInputs = shapeInputs.map((input) =>
-      input.reshape([1, 2, 3, 3])
-    );
-
-    let action;
     if (Math.random() <= this.explorationRate) {
-      // Exploration: Randomly select a shape and a valid position
-      const shapeIndex = getRandomNotEmptyShapeElementIndex(optionsByShape);
-      const shapeAvailablePositions = optionsByShape[shapeIndex];
-      const randomPositionIndex = getRandomNumber(
-        0,
-        shapeAvailablePositions.length - 1
-      );
-      const randomAvailablePosition =
-        shapeAvailablePositions[randomPositionIndex];
-
-      const { col: unPaddedCol, row } = randomAvailablePosition;
-      const rowPadding = gridPadding[row];
-      const col = unPaddedCol + rowPadding;
-      const positionIndex = getIndexFromColAndRow(
-        col,
-        row,
-        colsPerRowGridPadded
-      );
-
-      action = this.tf.tensor([shapeIndex, positionIndex], [1, 2]);
+      // Exploration: Randomly select a valid action
+      const validActionsIndices = validActionsMask
+        .dataSync()
+        .map((value, index) => (value === 1 ? index : -1))
+        .filter((index) => index !== -1);
+      const randomIndex =
+        validActionsIndices[
+          Math.floor(Math.random() * validActionsIndices.length)
+        ];
+      return randomIndex;
     } else {
-      // Exploitation: Predict the best shape and position
-      const predictedQualityValues = this.model.predict([
-        ...reshapedGridInputs,
-        ...reshapedShapeInputs,
-      ]) as tfType.Tensor;
-
-      // Extract shape and position predictions
-      const shapeProbabilities = predictedQualityValues.slice([0, 0], [1, 3]);
-      const shapeIndex = shapeProbabilities.argMax(1).dataSync()[0]; // Select the shape with the highest predicted quality
-
-      const positionProbabilities = predictedQualityValues.slice(
-        [0, 3],
-        [1, 120]
-      );
-      const positionIndex = positionProbabilities.argMax(1).dataSync()[0]; // Select the position with the highest predicted quality
-
-      action = this.tf.tensor([shapeIndex, positionIndex], [1, 2]);
+      // Exploitation: Predict the best action
+      const predictedQValues = this.model.predict(
+        gridInput.reshape([1, 8, 15, 3])
+      ) as tf.Tensor;
+      const maskedQValues = predictedQValues.add(validActionsMask.mul(-1e9));
+      const actionIndex = maskedQValues.argMax(1).dataSync()[0];
+      return actionIndex;
     }
-
-    const end = Date.now(); // End timing
-    this.actionTimes.push(end - start); // Store action time
-    return action;
   }
 
-  async replay(batchSize: number) {
+  async replay() {
     const start = Date.now();
-    const rewardFulMemories = this.memory.filter(
-      (memory, index) => memory.reward != 0
-    );
-    const maxIndex = rewardFulMemories.length - 1 - batchSize;
-    const randomIndex = Math.floor(Math.random() * maxIndex);
-    const minibatch = rewardFulMemories.slice(
-      randomIndex,
-      randomIndex + batchSize
-    );
+    const minibatchSize = Math.min(batchSize, this.memory.length);
+    const minibatch = this.memory.slice(-minibatchSize);
     let batchLoss = 0;
 
-    for (const { state, action, reward, nextState, done } of minibatch) {
-      // Reshape the state and nextState tensors to include batch and channels dimensions
-      const [nextState1, nextState2] = nextState;
-      const [state1, state2] = state;
+    const states = minibatch.map((m) => m.state.reshape([8, 15, 3]));
+    const nextStates = minibatch.map((m) => m.nextState.reshape([8, 15, 3]));
+    const actions = minibatch.map((m) => m.action);
+    const rewards = minibatch.map((m) => m.reward);
+    const dones = minibatch.map((m) => (m.done ? 0 : 1));
 
-      const reshapedNextStateGrid = nextState1.map((input) =>
-        input.reshape([1, 8, 15, 3])
-      );
-      const reshapedNextStateShape = nextState2.map((input) =>
-        input.reshape([1, 2, 3, 3])
-      );
+    const statesTensor = tf.stack(states);
+    const nextStatesTensor = tf.stack(nextStates);
 
-      const reshapedStateGrid = state1.map((input) =>
-        input.reshape([1, 8, 15, 3])
-      );
-      const reshapedStateShape = state2.map((input) =>
-        input.reshape([1, 2, 3, 3])
-      );
+    const targetQs = tf.tidy(() => {
+      const targetQValues = this.targetModel.predict(
+        nextStatesTensor
+      ) as tf.Tensor;
+      const maxTargetQValues = targetQValues.max(1).mul(tf.tensor1d(dones));
+      return tf
+        .tensor1d(rewards)
+        .add(maxTargetQValues.mul(this.discountFactor));
+    });
 
-      const targetQ =
-        reward +
-        this.discountFactor *
-          (done
-            ? 0
-            : Math.max(
-                ...Array.from(
-                  (
-                    this.targetModel.predict([
-                      ...reshapedNextStateGrid,
-                      ...reshapedNextStateShape,
-                    ]) as tfType.Tensor<tfType.Rank.R2>
-                  ).dataSync()
-                )
-              ));
-      const qValues = this.model.predict([
-        ...reshapedStateGrid,
-        ...reshapedStateShape,
-      ]) as tfType.Tensor<tfType.Rank.R2>;
+    const masks = tf.oneHot(actions, this.actionSize);
 
-      const qValuesCopy = qValues.arraySync() as number[][];
+    const optimizer = tf.train.adam(this.learningRate);
+    const lossFunction = () => {
+      const qValues = this.model.predict(statesTensor) as tf.Tensor;
+      const qValuesWithMasks = qValues.mul(masks);
+      const actionQValues = tf.sum(qValuesWithMasks, 1);
+      const loss = tf.losses.meanSquaredError(targetQs, actionQValues);
+      return loss;
+    };
 
-      const [shapeIndex, targetIndex] = Array.from(
-        action.dataSync() as unknown as number[]
-      );
+    const grads = tf.variableGrads(lossFunction);
+    optimizer.applyGradients(grads.grads);
 
-      const actionIndex = 3 + targetIndex;
-      qValuesCopy[0][actionIndex] = targetQ;
-
-      const targetTensor = this.tf.tensor(qValuesCopy);
-
-      await this.model.fit(
-        [...reshapedStateGrid, ...reshapedStateShape],
-        targetTensor,
-        {
-          epochs: 1,
-          verbose: 0,
-          batchSize: batchSize,
-          callbacks: {
-            onBatchEnd: async (batch, logs) => {
-              batchLoss += logs?.loss || 0;
-              this.trainStep++;
-              if (this.trainStep % this.updateTargetNetworkFrequency === 0) {
-                this.updateTargetNetwork();
-                this.saveModelWeights();
-              }
-            },
-          },
-        }
-      );
-
-      this.tf.dispose([qValues, targetTensor, targetTensor]);
-    }
-
+    batchLoss = grads.value.dataSync()[0];
     this.totalLoss += batchLoss;
     this.batchCount++;
-    const currentAverageLoss = this.totalLoss / this.batchCount;
 
-    this.averageLoss = currentAverageLoss;
+    tf.dispose([
+      statesTensor,
+      nextStatesTensor,
+      targetQs,
+      masks,
+      grads.value,
+      ...Object.values(grads.grads),
+    ]);
+
+    this.trainStep++;
+    if (this.trainStep % this.updateTargetNetworkFrequency === 0) {
+      this.updateTargetNetwork();
+      await this.saveModelWeights();
+    }
+
     if (this.explorationRate > this.explorationMin) {
       this.explorationRate *= this.explorationDecay;
     }
-    const end = Date.now();
 
+    this.averageLoss = this.totalLoss / this.batchCount;
+
+    const end = Date.now();
     const duration = end - start;
     this.replayTimes.push(duration);
   }
@@ -1898,12 +2616,12 @@ export class DQNAgent {
 
   async loadModelWeights() {
     try {
-      const loadedModel = await this.tf.loadLayersModel(this.modelName);
+      const loadedModel = await tf.loadLayersModel(this.modelName);
       this.model.setWeights(loadedModel.getWeights());
       console.log(`Model weights loaded from ${this.modelName}`);
     } catch (error) {
       console.error("Failed to load model weights:", error);
-      throw error;
+      // Continue without throwing an error
     }
   }
 
@@ -1914,9 +2632,13 @@ export class DQNAgent {
 
 
 File: learn/GameEnvironment.ts
-import * as tfType from "@tensorflow/tfjs";
+// File: learn/GameEnvironment.ts
+
+import * as tf from "@tensorflow/tfjs";
 import Game from "../game";
-import { gridPadding } from "../helpers/constants";
+import { totalShapes, totalPositions, actionSize } from "./configs";
+import { getIndexFromColAndRow } from "../helpers/triangles";
+import { colsPerRowGridPadded, gridPadding } from "../helpers/constants";
 
 export class GameEnvironment {
   private game: Game;
@@ -1929,6 +2651,7 @@ export class GameEnvironment {
 
   reset() {
     this.previousScore = 0;
+    this.howLongStaticScore = 0;
     this.game.resetGame();
     return this.getTensorInputState();
   }
@@ -1945,65 +2668,114 @@ export class GameEnvironment {
     return this.game.shapes;
   }
 
-  getTensorInputState() {
+  getTensorInputState(): tf.Tensor {
     return this.game.getTensorGameState();
   }
 
-  getValidPositions() {
-    return this.game.getValidPositionsByShapes();
+  getValidActionsMask(): tf.Tensor {
+    const validPositionsByShapes = this.game.getValidPositionsByShapes();
+    const mask = new Array(actionSize).fill(0);
+
+    validPositionsByShapes.forEach((positions, shapeIndex) => {
+      positions.forEach(({ col, row }) => {
+        const rowPadding = gridPadding[row];
+        const paddedCol = col + rowPadding;
+        const positionIndex = getIndexFromColAndRow(
+          paddedCol,
+          row,
+          colsPerRowGridPadded
+        );
+        const actionIndex = shapeIndex * totalPositions + positionIndex;
+        mask[actionIndex] = 1;
+      });
+    });
+
+    return tf.tensor([mask]);
   }
-  step(action: tfType.Tensor) {
-    const [actionList] = action.toInt().arraySync() as number[][];
-    const [shapeIndex, paddedIndexTarget] = actionList;
 
-    const unPaddingRowCol = (paddedIndex: number) => {
-      const row = Math.floor(paddedIndex / 15);
-      const padding = gridPadding[row];
-      const col = (paddedIndex % 15) - padding;
-      return [col, row];
-    };
+  step(action: number) {
+    const shapeIndex = Math.floor(action / totalPositions);
+    const positionIndex = action % totalPositions;
 
-    const [col, row] = unPaddingRowCol(paddedIndexTarget);
+    const { col: paddedCol, row } = this.getColRowFromIndex(
+      positionIndex,
+      colsPerRowGridPadded
+    );
 
-    this.game.moveShapeToTriangle(col ?? 0, row ?? 0, shapeIndex);
-    const nextState = this.getTensorInputState();
+    const rowPadding = gridPadding[row];
+    const col = paddedCol - rowPadding;
 
-    const score = this.getScore();
-    const pointsDiff = score - this.previousScore;
-    if (pointsDiff !== 0) {
-      this.howLongStaticScore = 0;
+    const validPositions = this.game.getValidPositionsByShapes()[shapeIndex];
+    const isValidMove = validPositions.some(
+      (pos) => pos.col === col && pos.row === row
+    );
+
+    let reward = -1; // Default penalty for invalid move
+    let done = false;
+
+    if (isValidMove) {
+      const moveSuccess = this.game.moveShapeToTriangle(col, row, shapeIndex);
+      if (moveSuccess) {
+        const score = this.getScore();
+        const scoreDiff = score - this.previousScore;
+
+        if (scoreDiff > 0) {
+          reward = scoreDiff * 10; // Reward for collapsing lines
+        } else {
+          reward = 1; // Small reward for valid move
+        }
+
+        this.previousScore = score;
+        this.howLongStaticScore = 0;
+      } else {
+        reward = -1; // Penalty for invalid move
+        this.howLongStaticScore += 1;
+      }
     } else {
+      reward = -1; // Penalty for invalid move
       this.howLongStaticScore += 1;
     }
-    const shapeSelectedLength = this.game.shapes[shapeIndex].length;
-    const done = this.game.isGameOver();
-    const reward = done
-      ? -2
-      : pointsDiff > 0
-      ? (pointsDiff - (shapeSelectedLength - 2)) / 6
-      : Math.max(-0.1 * this.howLongStaticScore, -1);
 
-    if (done) {
-      console.log(
-        "%c GAME OVER! ",
-        "background: #222; color: #f00;  font-weight: bold; font-size: 16px;"
-      );
+    if (this.game.isGameOver()) {
+      done = true;
+      reward = -10; // Penalty for game over
     }
 
-    this.previousScore = score;
+    const nextState = this.getTensorInputState();
     return { nextState, reward, done };
+  }
+
+  getColRowFromIndex(
+    index: number,
+    colsPerRow: number[]
+  ): { col: number; row: number } {
+    let cumulativeCols = 0;
+    for (let row = 0; row < colsPerRow.length; row++) {
+      const colsInRow = colsPerRow[row];
+      if (index < cumulativeCols + colsInRow) {
+        const col = index - cumulativeCols;
+        return { col, row };
+      }
+      cumulativeCols += colsInRow;
+    }
+    // If index is out of bounds
+    return { col: -1, row: -1 };
   }
 }
 
 
 File: learn/configs.ts
-export const movementsBatchSize = 1;
-export const trainingEpisodes = 10000;
-export const intervalToForceUpdate = 200;
-export const learningRate = 0.0002;
+// File: learn/configs.ts
+export const totalShapes = 3;
+export const totalPositions = 120; // Adjust based on your grid size
+export const actionSize = totalShapes * totalPositions;
 
+export const batchSize = 32;
+export const trainingEpisodes = 10000;
+export const learningRate = 0.001;
+export const explorationDecay = 0.9990;
+export const updateTargetNetworkEveryNSteps = 1000;
+export const intervalToForceUpdate = 200;
 export const replayEveryNSteps = 200;
-export const updateTargetNetworkEveryNSteps = 100;
-export const explorationDecay = 0.9995;
 
 

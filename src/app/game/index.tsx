@@ -10,6 +10,7 @@ import {
 import { buildNewShape } from "../helpers/triangles";
 
 import { checkLineCollapse } from "./../game/collapse";
+import { actionSize } from "../learn/configs";
 
 import { isTriangleUp, initializeTrianglesGrid } from "../helpers/triangles";
 
@@ -384,86 +385,22 @@ class Game {
     return emptyGrids;
   }
 
-  public getTensorGameState(): [
-    [tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor],
-    [tf.Tensor, tf.Tensor, tf.Tensor]
-  ] {
+  public getTensorGameState(): tf.Tensor {
+    const gridAvailability = this.getGridAvailability();
     const gridDownwards = this.getGriDownwards();
     const gridUpwards = this.getGridUpwards();
 
-    const gridAvailability = this.getGridAvailability();
-    const [fittableByShapeGrid1, fittableByShapeGrid2, fittableByShapeGrid3] =
-      this.getFittableByShapeGrid();
-
-    const availabilityChannel = combineMatrices([
+    const gridFeatures = combineMatrices([
       gridAvailability,
       gridDownwards,
       gridUpwards,
     ]);
 
-    const fitShape1Channel = combineMatrices([
-      fittableByShapeGrid1,
-      gridDownwards,
-      gridUpwards,
-    ]);
+    const gridTensor = tf
+      .tensor(gridFeatures, [8, 15, 3])
+      .reshape([1, 8, 15, 3]);
 
-    const fitShape2Channel = combineMatrices([
-      fittableByShapeGrid2,
-      gridDownwards,
-      gridUpwards,
-    ]);
-
-    const fitShape3Channel = combineMatrices([
-      fittableByShapeGrid3,
-      gridDownwards,
-      gridUpwards,
-    ]);
-
-    const shapesUpwardness = this.getShapesUpwardness();
-    const shapesDownwards = this.getShapesDownwards();
-
-    const [shape1Grid, shape2Grid, shape3Grid] = this.getShapesGrid();
-
-    const shape1Channel = combineMatrices([
-      shape1Grid,
-      shapesDownwards,
-      shapesUpwardness,
-    ]);
-    const shape2Channel = combineMatrices([
-      shape2Grid,
-      shapesDownwards,
-      shapesUpwardness,
-    ]);
-    const shape3Channel = combineMatrices([
-      shape3Grid,
-      shapesDownwards,
-      shapesUpwardness,
-    ]);
-
-    const gridsFeatures = [
-      availabilityChannel,
-      fitShape1Channel,
-      fitShape2Channel,
-      fitShape3Channel,
-    ];
-
-    const shapesFeatures = [shape1Channel, shape2Channel, shape3Channel];
-
-    const [
-      availabilityTensor,
-      fitShape1Tensor,
-      fitShape2Tensor,
-      fitShape3Tensor,
-    ] = gridsFeatures.map((grid) => tf.tensor(grid, this.getTensorGridShape()));
-
-    const [shape1Tensor, shape2Tensor, shape3Tensor] = shapesFeatures.map(
-      (shape) => tf.tensor(shape, this.getTensorShapeShape())
-    );
-
-    return [
-      [availabilityTensor, fitShape1Tensor, fitShape2Tensor, fitShape3Tensor],
-      [shape1Tensor, shape2Tensor, shape3Tensor],
-    ];
+    return gridTensor;
   }
 
   public isGameOver() {
@@ -538,6 +475,9 @@ class Game {
           )
         );
         this.setShape(shapeIndex, []);
+        return true;
+      } else {
+        return false;
       }
     }
   }

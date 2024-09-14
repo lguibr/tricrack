@@ -1,6 +1,10 @@
-import * as tfType from "@tensorflow/tfjs";
+// File: learn/GameEnvironment.ts
+
+import * as tf from "@tensorflow/tfjs";
 import Game from "../game";
-import { gridPadding } from "../helpers/constants";
+import { totalShapes, totalPositions, actionSize } from "./configs";
+import { getIndexFromColAndRow } from "../helpers/triangles";
+import { colsPerRowGridPadded, gridPadding } from "../helpers/constants";
 
 export class GameEnvironment {
   private game: Game;
@@ -13,6 +17,7 @@ export class GameEnvironment {
 
   reset() {
     this.previousScore = 0;
+    this.howLongStaticScore = 0;
     this.game.resetGame();
     return this.getTensorInputState();
   }
@@ -29,52 +34,97 @@ export class GameEnvironment {
     return this.game.shapes;
   }
 
-  getTensorInputState() {
+  getTensorInputState(): tf.Tensor {
     return this.game.getTensorGameState();
   }
 
-  getValidPositions() {
-    return this.game.getValidPositionsByShapes();
+  getValidActionsMask(): tf.Tensor {
+    const validPositionsByShapes = this.game.getValidPositionsByShapes();
+    const mask = new Array(actionSize).fill(0);
+
+    validPositionsByShapes.forEach((positions, shapeIndex) => {
+      positions.forEach(({ col, row }) => {
+        const rowPadding = gridPadding[row];
+        const paddedCol = col + rowPadding;
+        const positionIndex = getIndexFromColAndRow(
+          paddedCol,
+          row,
+          colsPerRowGridPadded
+        );
+        const actionIndex = shapeIndex * totalPositions + positionIndex;
+        mask[actionIndex] = 1;
+      });
+    });
+
+    return tf.tensor([mask]);
   }
-  step(action: tfType.Tensor) {
-    const [actionList] = action.toInt().arraySync() as number[][];
-    const [shapeIndex, paddedIndexTarget] = actionList;
 
-    const unPaddingRowCol = (paddedIndex: number) => {
-      const row = Math.floor(paddedIndex / 15);
-      const padding = gridPadding[row];
-      const col = (paddedIndex % 15) - padding;
-      return [col, row];
-    };
+  step(action: number) {
+    const shapeIndex = Math.floor(action / totalPositions);
+    const positionIndex = action % totalPositions;
 
-    const [col, row] = unPaddingRowCol(paddedIndexTarget);
+    const { col: paddedCol, row } = this.getColRowFromIndex(
+      positionIndex,
+      colsPerRowGridPadded
+    );
 
-    this.game.moveShapeToTriangle(col ?? 0, row ?? 0, shapeIndex);
-    const nextState = this.getTensorInputState();
+    const rowPadding = gridPadding[row];
+    const col = paddedCol - rowPadding;
 
-    const score = this.getScore();
-    const pointsDiff = score - this.previousScore;
-    if (pointsDiff !== 0) {
-      this.howLongStaticScore = 0;
+    const validPositions = this.game.getValidPositionsByShapes()[shapeIndex];
+    const isValidMove = validPositions.some(
+      (pos) => pos.col === col && pos.row === row
+    );
+
+    let reward = -1; // Default penalty for invalid move
+    let done = false;
+
+    if (isValidMove) {
+      const moveSuccess = this.game.moveShapeToTriangle(col, row, shapeIndex);
+      if (moveSuccess) {
+        const score = this.getScore();
+        const scoreDiff = score - this.previousScore;
+
+        if (scoreDiff > 0) {
+          reward = scoreDiff * 10; // Reward for collapsing lines
+        } else {
+          reward = 1; // Small reward for valid move
+        }
+
+        this.previousScore = score;
+        this.howLongStaticScore = 0;
+      } else {
+        reward = -1; // Penalty for invalid move
+        this.howLongStaticScore += 1;
+      }
     } else {
+      reward = -1; // Penalty for invalid move
       this.howLongStaticScore += 1;
     }
-    const shapeSelectedLength = this.game.shapes[shapeIndex].length;
-    const done = this.game.isGameOver();
-    const reward = done
-      ? -2
-      : pointsDiff > 0
-      ? (pointsDiff - (shapeSelectedLength - 2)) / 6
-      : Math.max(-0.1 * this.howLongStaticScore, -1);
 
-    if (done) {
-      console.log(
-        "%c GAME OVER! ",
-        "background: #222; color: #f00;  font-weight: bold; font-size: 16px;"
-      );
+    if (this.game.isGameOver()) {
+      done = true;
+      reward = -10; // Penalty for game over
     }
 
-    this.previousScore = score;
+    const nextState = this.getTensorInputState();
     return { nextState, reward, done };
+  }
+
+  getColRowFromIndex(
+    index: number,
+    colsPerRow: number[]
+  ): { col: number; row: number } {
+    let cumulativeCols = 0;
+    for (let row = 0; row < colsPerRow.length; row++) {
+      const colsInRow = colsPerRow[row];
+      if (index < cumulativeCols + colsInRow) {
+        const col = index - cumulativeCols;
+        return { col, row };
+      }
+      cumulativeCols += colsInRow;
+    }
+    // If index is out of bounds
+    return { col: -1, row: -1 };
   }
 }
