@@ -1,8 +1,8 @@
-export const movementsBatchSize = 16;
-export const trainingEpisodes = 1000;
-export const intervalToForceUpdate = 250;
-export const learningRate = 0.0004;
+export const movementsBatchSize = 1;
+export const trainingEpisodes = 10000;
+export const intervalToForceUpdate = 200;
+export const learningRate = 0.0002;
 
-export const replayEveryNSteps = movementsBatchSize * 4;
-export const updateTargetNetworkEveryNSteps = movementsBatchSize * 10;
-export const explorationDecay = 1 - learningRate;
+export const replayEveryNSteps = 200;
+export const updateTargetNetworkEveryNSteps = 100;
+export const explorationDecay = 0.9995;

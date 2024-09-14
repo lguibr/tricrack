@@ -1,4 +1,3 @@
-// src/utils/Game.ts
 import * as tf from "@tensorflow/tfjs";
 
 import { FixedLengthArray, TriangleState } from "../helpers/types";
@@ -8,15 +7,13 @@ import {
   colsPerRowShape,
   gridPadding,
 } from "../helpers/constants";
-import {
-  buildNewShape,
-  getIndexFromColAndRow,
-  removeDuplicatedTrianglesByColAndRow,
-} from "../helpers/triangles";
+import { buildNewShape } from "../helpers/triangles";
 
 import { checkLineCollapse } from "./../game/collapse";
 
 import { isTriangleUp, initializeTrianglesGrid } from "../helpers/triangles";
+
+import { combineMatrices } from "../helpers/calculations";
 
 class Game {
   private historyTriangles: TriangleState[][] = [];
@@ -142,20 +139,25 @@ class Game {
     }
   }
 
-  public getValidPositionsByShapes() {
-    const validPositions = this.shapes.map((shape) => {
-      const positions: { row: number; col: number }[] = [];
+  public getValidPositionsByShapes(): { col: number; row: number }[][] {
+    return this.shapes.map((shape) => {
+      const shapeIsEmtpy = shape.length === 0;
+      const validPositions: { row: number; col: number }[] = [];
+
       this.triangles.forEach((triangle) => {
-        const { validPositions } =
-          this.calculateHoveredAndValidPositions(null, triangle, true, shape) ??
-          {};
-        if (validPositions) {
-          positions.push(...validPositions);
-        }
+        const { isValid } = this.calculateHoveredAndValidPositions(
+          null,
+          triangle,
+          true,
+          shape
+        ) ?? { isValid: false };
+
+        if (isValid)
+          validPositions.push({ row: triangle.row, col: triangle.col });
       });
-      return removeDuplicatedTrianglesByColAndRow(positions);
+
+      return validPositions;
     });
-    return validPositions;
   }
 
   public calculateHoveredAndValidPositions(
@@ -166,7 +168,8 @@ class Game {
   ) {
     event?.preventDefault();
 
-    if (!shape) return;
+    const shapeIsEmpty = !shape || shape?.length === 0;
+    if (shapeIsEmpty) return;
 
     const firstTriangle = shape[0];
     const defaultColOffset = gridPadding[targetTriangle.row];
@@ -219,7 +222,7 @@ class Game {
 
   private getEmptyGrid(): FixedLengthArray<FixedLengthArray<number, 15>, 8> {
     const emptyGrid = Array.from({ length: 8 }, () =>
-      Array.from({ length: 15 }, () => -1)
+      Array.from({ length: 15 }, () => 0)
     ) as FixedLengthArray<FixedLengthArray<number, 15>, 8>;
 
     return emptyGrid;
@@ -227,8 +230,8 @@ class Game {
 
   getEmptyShapeGrid(): FixedLengthArray<FixedLengthArray<number, 3>, 2> {
     return [
-      [-1, -1, -1],
-      [-1, -1, -1],
+      [0, 0, 0],
+      [0, 0, 0],
     ];
   }
 
@@ -257,17 +260,6 @@ class Game {
     return shapesGrid;
   }
 
-  private getGrid(): FixedLengthArray<FixedLengthArray<number, 15>, 8> {
-    const grid = this.getEmptyGrid();
-    this.triangles.forEach((triangle) => {
-      const { row, col: paddedCol, color } = triangle;
-      const rowOffset = gridPadding[row];
-      const realCol = paddedCol + rowOffset;
-      grid[row][realCol] = 1;
-    });
-
-    return grid;
-  }
   private getGridAvailability(): FixedLengthArray<
     FixedLengthArray<number, 15>,
     8
@@ -364,10 +356,10 @@ class Game {
   }
 
   private getTensorGridShape(): number[] {
-    return [7, 8, 15];
+    return [8, 15, 3];
   }
   private getTensorShapeShape(): number[] {
-    return [5, 2, 3];
+    return [2, 3, 3];
   }
 
   private getFittableByShapeGrid(): FixedLengthArray<
@@ -392,34 +384,86 @@ class Game {
     return emptyGrids;
   }
 
-  public getTensorGameState(): [tf.Tensor, tf.Tensor] {
-    const gridFormat = this.getGrid();
+  public getTensorGameState(): [
+    [tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor],
+    [tf.Tensor, tf.Tensor, tf.Tensor]
+  ] {
     const gridDownwards = this.getGriDownwards();
     const gridUpwards = this.getGridUpwards();
+
     const gridAvailability = this.getGridAvailability();
+    const [fittableByShapeGrid1, fittableByShapeGrid2, fittableByShapeGrid3] =
+      this.getFittableByShapeGrid();
 
-    const shapesGrid = this.getShapesGrid();
-    const shapesUpwardness = this.getShapesUpwardness();
-    const shapesDownwards = this.getShapesDownwards();
-    const fittableByShapeGrid = this.getFittableByShapeGrid();
-
-    const gridsFeatures = [
-      gridFormat,
+    const availabilityChannel = combineMatrices([
       gridAvailability,
       gridDownwards,
       gridUpwards,
-      ...fittableByShapeGrid,
+    ]);
+
+    const fitShape1Channel = combineMatrices([
+      fittableByShapeGrid1,
+      gridDownwards,
+      gridUpwards,
+    ]);
+
+    const fitShape2Channel = combineMatrices([
+      fittableByShapeGrid2,
+      gridDownwards,
+      gridUpwards,
+    ]);
+
+    const fitShape3Channel = combineMatrices([
+      fittableByShapeGrid3,
+      gridDownwards,
+      gridUpwards,
+    ]);
+
+    const shapesUpwardness = this.getShapesUpwardness();
+    const shapesDownwards = this.getShapesDownwards();
+
+    const [shape1Grid, shape2Grid, shape3Grid] = this.getShapesGrid();
+
+    const shape1Channel = combineMatrices([
+      shape1Grid,
+      shapesDownwards,
+      shapesUpwardness,
+    ]);
+    const shape2Channel = combineMatrices([
+      shape2Grid,
+      shapesDownwards,
+      shapesUpwardness,
+    ]);
+    const shape3Channel = combineMatrices([
+      shape3Grid,
+      shapesDownwards,
+      shapesUpwardness,
+    ]);
+
+    const gridsFeatures = [
+      availabilityChannel,
+      fitShape1Channel,
+      fitShape2Channel,
+      fitShape3Channel,
     ];
 
-    const shapesFeatures = [...shapesGrid, shapesUpwardness, shapesDownwards];
+    const shapesFeatures = [shape1Channel, shape2Channel, shape3Channel];
 
-    const girdTensorShape = this.getTensorGridShape();
-    const gridTensor = tf.tensor(gridsFeatures, girdTensorShape);
+    const [
+      availabilityTensor,
+      fitShape1Tensor,
+      fitShape2Tensor,
+      fitShape3Tensor,
+    ] = gridsFeatures.map((grid) => tf.tensor(grid, this.getTensorGridShape()));
 
-    const shapeTensorShape = this.getTensorShapeShape();
-    const shapeTensor = tf.tensor(shapesFeatures, shapeTensorShape);
+    const [shape1Tensor, shape2Tensor, shape3Tensor] = shapesFeatures.map(
+      (shape) => tf.tensor(shape, this.getTensorShapeShape())
+    );
 
-    return [gridTensor, shapeTensor];
+    return [
+      [availabilityTensor, fitShape1Tensor, fitShape2Tensor, fitShape3Tensor],
+      [shape1Tensor, shape2Tensor, shape3Tensor],
+    ];
   }
 
   public isGameOver() {

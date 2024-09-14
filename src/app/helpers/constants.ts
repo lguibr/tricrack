@@ -12,6 +12,8 @@ export const gridPadding = colsPerRowGrid.map(
   (cols) => (maxGridCols - cols) / 2
 );
 
+export const colsPerRowGridPadded = [15, 15, 15, 15, 15, 15, 15, 15];
+
 export const shapeSize = triangleSizeGrid * 3;
 export const colsPerRowShape = [3, 3];
 export const trianglesShapeSize = triangleSizeGrid;

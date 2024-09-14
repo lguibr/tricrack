@@ -15,10 +15,10 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
   game,
   tf,
 }) => {
-  const [episode, setEpisode] = React.useState(0);
+  const [iteration, setIteration] = React.useState(0);
   const agentRef = useRef<DQNAgent | null>(null);
   const gameEnvironmentRef = useRef<GameEnvironment | null>(null);
-  const haveInstanciated = useRef(false);
+  const haveInstantiated = useRef(false);
 
   const lossValues = useRef<{ x: number; y: number }[]>([]);
   const explorationRateValues = useRef<{ x: number; y: number }[]>([]);
@@ -34,22 +34,20 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
 
     // Create and configure DQNAgent only once
     if (!agentRef.current) {
-      const stateSize = game.getTensorGameState()[0].shape[1]!;
-
       const actionSize = 8 * 15 + 3;
       if (tf != null) {
-        agentRef.current = new DQNAgent(stateSize, actionSize, tf);
+        agentRef.current = new DQNAgent(actionSize, tf);
       }
     }
 
     const trainAgent = async () => {
-      if (haveInstanciated.current) return;
-      haveInstanciated.current = true;
+      if (haveInstantiated.current) return;
+      haveInstantiated.current = true;
       const dqnAgent = agentRef.current;
       const gameEnvironment = gameEnvironmentRef.current;
       if (dqnAgent && gameEnvironment) {
-        for (let episode = 0; episode < trainingEpisodes; episode++) {
-          setEpisode(episode + 1);
+        for (let iteration = 0; iteration < trainingEpisodes; iteration++) {
+          setIteration(iteration + 1);
           let state = gameEnvironment.reset();
           let done = false;
           while (!done) {
@@ -91,23 +89,23 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
       const currentActionTime = agentRef.current?.actionTimes.slice(-1)[0] || 0;
       const currentReplayTime = agentRef.current?.replayTimes.slice(-1)[0] || 0;
 
-      lossValues.current.push({ x: episode, y: currentAverageLoss });
+      lossValues.current.push({ x: iteration, y: currentAverageLoss });
       explorationRateValues.current.push({
-        x: episode,
+        x: iteration,
         y: currentExplorationRate,
       });
-      scoreValues.current.push({ x: episode, y: currentScore });
-      actionTimeValues.current.push({ x: episode, y: currentActionTime });
-      replayTimeValues.current.push({ x: episode, y: currentReplayTime });
+      scoreValues.current.push({ x: iteration, y: currentScore });
+      actionTimeValues.current.push({ x: iteration, y: currentActionTime });
+      replayTimeValues.current.push({ x: iteration, y: currentReplayTime });
 
       tfvis.render.linechart(
         { name: "Loss Over Time" },
         { values: [lossValues.current] },
         {
-          xLabel: "Episode",
+          xLabel: "Iteration",
           yLabel: "Loss",
-          width: 400,
-          height: 300,
+          width: 500,
+          height: 100,
         }
       );
 
@@ -115,10 +113,10 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
         { name: "Exploration Rate Over Time" },
         { values: [explorationRateValues.current] },
         {
-          xLabel: "Episode",
+          xLabel: "Iteration",
           yLabel: "Exploration Rate",
-          width: 400,
-          height: 300,
+          width: 500,
+          height: 100,
         }
       );
 
@@ -126,10 +124,10 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
         { name: "Score Over Time" },
         { values: [scoreValues.current] },
         {
-          xLabel: "Episode",
+          xLabel: "Iteration",
           yLabel: "Score",
-          width: 400,
-          height: 300,
+          width: 500,
+          height: 100,
         }
       );
 
@@ -137,10 +135,10 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
         { name: "Action Time Over Time" },
         { values: [actionTimeValues.current] },
         {
-          xLabel: "Episode",
+          xLabel: "Iteration",
           yLabel: "Action Time (ms)",
-          width: 400,
-          height: 300,
+          width: 500,
+          height: 100,
         }
       );
 
@@ -148,41 +146,55 @@ const GameTrainer: React.FC<{ game: Game; tf: typeof tfType }> = ({
         { name: "Replay Time Over Time" },
         { values: [replayTimeValues.current] },
         {
-          xLabel: "Episode",
+          xLabel: "Iteration",
           yLabel: "Replay Time (ms)",
-          width: 400,
-          height: 300,
+          width: 500,
+          height: 100,
         }
       );
     }, 100); // Update the charts every second
 
     return () => clearInterval(interval);
-  }, [episode, game.score]);
+  }, [iteration, game.score]);
 
   return (
-    <FloatingContent>
-      Training the agent game {episode} of {trainingEpisodes} ...
+    <>
       <div
-        id="loss-chart"
-        style={{ position: "absolute", top: "10px", right: "10px" }}
-      ></div>
-      <div
-        id="exploration-chart"
-        style={{ position: "absolute", top: "320px", right: "10px" }}
-      ></div>
-      <div
-        id="score-chart"
-        style={{ position: "absolute", top: "630px", right: "10px" }}
-      ></div>
-      <div
-        id="action-time-chart"
-        style={{ position: "absolute", top: "940px", right: "10px" }}
-      ></div>
-      <div
-        id="replay-time-chart"
-        style={{ position: "absolute", top: "1250px", right: "10px" }}
-      ></div>
-    </FloatingContent>
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          top: "20px",
+          zIndex: 9999,
+          color: "red",
+        }}
+      >
+        <h2>
+          Training the agent game {iteration} of {trainingEpisodes} ...
+        </h2>
+      </div>
+      <FloatingContent>
+        <div
+          id="loss-chart"
+          style={{ position: "absolute", top: "10px", right: "10px" }}
+        ></div>
+        <div
+          style={{ position: "absolute", top: "320px", right: "10px" }}
+        ></div>
+        <div
+          id="score-chart"
+          style={{ position: "absolute", top: "630px", right: "10px" }}
+        ></div>
+        <div
+          id="action-time-chart"
+          style={{ position: "absolute", top: "940px", right: "10px" }}
+        ></div>
+        <div
+          id="replay-time-chart"
+          style={{ position: "absolute", top: "1250px", right: "10px" }}
+        ></div>
+      </FloatingContent>
+    </>
   );
 };
 
@@ -195,4 +207,5 @@ const FloatingContent = styled.div`
   padding: 10px;
   border-radius: 5px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  color: black;
 `;

@@ -43,7 +43,7 @@ export class GameEnvironment {
     const unPaddingRowCol = (paddedIndex: number) => {
       const row = Math.floor(paddedIndex / 15);
       const padding = gridPadding[row];
-      const col = (paddedIndex % 15) + padding;
+      const col = (paddedIndex % 15) - padding;
       return [col, row];
     };
 

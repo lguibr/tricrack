@@ -24,10 +24,15 @@ type _FixedLengthArray<
   R extends unknown[]
 > = R["length"] extends L ? R : _FixedLengthArray<T, L, [T, ...R]>;
 
+export type TensorGameState = [
+  [tfType.Tensor, tfType.Tensor, tfType.Tensor, tfType.Tensor],
+  [tfType.Tensor, tfType.Tensor, tfType.Tensor]
+];
+
 export type Memory = {
-  state: [tfType.Tensor, tfType.Tensor];
+  state: TensorGameState;
   action: tfType.Tensor;
   reward: number;
-  nextState: [tfType.Tensor, tfType.Tensor];
+  nextState: TensorGameState;
   done: boolean;
 };
