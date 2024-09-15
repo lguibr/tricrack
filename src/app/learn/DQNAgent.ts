@@ -59,34 +59,120 @@ export class DQNAgent {
   buildModel() {
     const gridInputs = tf.input({ shape: [8, 15, 3], name: "grid_input" });
 
-    // Convolutional layers for grid input
+    // Block 1
     let x = tf.layers
-      .conv2d({ filters: 32, kernelSize: 3, activation: "relu" })
+      .conv2d({
+        filters: 8,
+        kernelSize: 3,
+        padding: "same",
+        activation: "relu",
+      })
       .apply(gridInputs) as tf.SymbolicTensor;
-    x = tf.layers.maxPooling2d({ poolSize: 2 }).apply(x) as tf.SymbolicTensor;
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
     x = tf.layers
-      .conv2d({ filters: 64, kernelSize: 3, activation: "relu" })
+      .maxPooling2d({ poolSize: 2, strides: 2 })
       .apply(x) as tf.SymbolicTensor;
-    x = tf.layers.flatten().apply(x) as tf.SymbolicTensor;
 
-    // Fully connected layers
+    // Block 2
+    x = tf.layers
+      .conv2d({
+        filters: 16,
+        kernelSize: 5,
+        padding: "same",
+        activation: "relu",
+      })
+      .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    x = tf.layers
+      .conv2d({
+        filters: 32,
+        kernelSize: 8,
+        padding: "same",
+        activation: "relu",
+      })
+      .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    x = tf.layers
+      .maxPooling2d({ poolSize: 2, strides: 2 })
+      .apply(x) as tf.SymbolicTensor;
+
+    // Block 3
+    x = tf.layers
+      .conv2d({
+        filters: 64,
+        kernelSize: 12,
+        padding: "same",
+        activation: "relu",
+      })
+      .apply(x) as tf.SymbolicTensor;
+
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    x = tf.layers
+      .maxPooling2d({ poolSize: 2, strides: 2 })
+      .apply(x) as tf.SymbolicTensor;
+
+    // Residual Block
+    const residual = x;
+    let res = tf.layers
+      .conv2d({
+        filters: 64,
+        kernelSize: 1,
+        padding: "same",
+        activation: "relu",
+      })
+      .apply(residual) as tf.SymbolicTensor;
+    res = tf.layers.batchNormalization().apply(res) as tf.SymbolicTensor;
+    res = tf.layers
+      .conv2d({
+        filters: 64,
+        kernelSize: 2,
+        padding: "same",
+        activation: "relu",
+      })
+      .apply(res) as tf.SymbolicTensor;
+    res = tf.layers.batchNormalization().apply(res) as tf.SymbolicTensor;
+    x = tf.layers.add().apply([x, res]) as tf.SymbolicTensor;
+    x = tf.layers
+      .activation({ activation: "relu" })
+      .apply(x) as tf.SymbolicTensor;
+
+    // Global Average Pooling
+    x = tf.layers.globalAveragePooling2d(x).apply(x) as tf.SymbolicTensor;
+
+    // Fully Connected Layers
+    x = tf.layers
+      .dense({ units: 1024, activation: "relu" })
+      .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
     x = tf.layers
       .dense({ units: 512, activation: "relu" })
       .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
     x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
     x = tf.layers
       .dense({ units: 256, activation: "relu" })
       .apply(x) as tf.SymbolicTensor;
+    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
 
-    // Output layer
+    // Output Layer
     const output = tf.layers
-      .dense({ units: this.actionSize, activation: "linear", name: "output" })
+      .dense({
+        units: this.actionSize,
+        activation: "linear",
+        name: "output",
+      })
       .apply(x) as tf.SymbolicTensor;
 
     const model = tf.model({ inputs: gridInputs, outputs: output });
+
+    // Compile the model with an optimizer that includes learning rate scheduling
+    const optimizer = tf.train.adam(this.learningRate);
     model.compile({
       loss: "meanSquaredError",
-      optimizer: tf.train.adam(this.learningRate),
+      optimizer: optimizer,
+      metrics: ["mse"],
     });
 
     return model;
