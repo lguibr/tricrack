@@ -236,31 +236,6 @@ class Game {
     ];
   }
 
-  private getShapesGrid(): FixedLengthArray<
-    FixedLengthArray<FixedLengthArray<number, 3>, 2>,
-    3
-  > {
-    const shapesGrid: FixedLengthArray<
-      FixedLengthArray<FixedLengthArray<number, 3>, 2>,
-      3
-    > = [
-      this.getEmptyShapeGrid(),
-      this.getEmptyShapeGrid(),
-      this.getEmptyShapeGrid(),
-    ];
-
-    this.shapes.forEach((shape, shapeIndex) => {
-      shape.forEach((triangle) => {
-        const { row, col } = triangle;
-        if (row < 8 && col < 15) {
-          shapesGrid[shapeIndex][row][col] = 1;
-        }
-      });
-    });
-
-    return shapesGrid;
-  }
-
   private getGridAvailability(): FixedLengthArray<
     FixedLengthArray<number, 15>,
     8
@@ -305,84 +280,6 @@ class Game {
     });
 
     return grid;
-  }
-
-  private getShapesUpwardness(): FixedLengthArray<
-    FixedLengthArray<number, 3>,
-    2
-  > {
-    const shapeOrientation = this.getEmptyShapeGrid();
-    const placeHolderShape = [
-      { row: 0, col: 0, color: 0 },
-      { row: 0, col: 1, color: 0 },
-      { row: 0, col: 2, color: 0 },
-      { row: 1, col: 0, color: 0 },
-      { row: 1, col: 1, color: 0 },
-      { row: 1, col: 2, color: 0 },
-    ];
-
-    placeHolderShape.forEach((triangle) => {
-      const { row, col } = triangle;
-      if (row < 8 && col < 15) {
-        const isUp = isTriangleUp(triangle, colsPerRowShape);
-        shapeOrientation[row][col] = isUp ? 1 : 0;
-      }
-    });
-
-    return shapeOrientation;
-  }
-  private getShapesDownwards(): FixedLengthArray<
-    FixedLengthArray<number, 3>,
-    2
-  > {
-    const shapeOrientation = this.getEmptyShapeGrid();
-    const placeHolderShape = [
-      { row: 0, col: 0, color: 0 },
-      { row: 0, col: 1, color: 0 },
-      { row: 0, col: 2, color: 0 },
-      { row: 1, col: 0, color: 0 },
-      { row: 1, col: 1, color: 0 },
-      { row: 1, col: 2, color: 0 },
-    ];
-
-    placeHolderShape.forEach((triangle) => {
-      const { row, col } = triangle;
-      if (row < 8 && col < 15) {
-        const isUp = isTriangleUp(triangle, colsPerRowShape);
-        shapeOrientation[row][col] = !isUp ? 1 : 0;
-      }
-    });
-
-    return shapeOrientation;
-  }
-
-  private getTensorGridShape(): number[] {
-    return [8, 15, 3];
-  }
-  private getTensorShapeShape(): number[] {
-    return [2, 3, 3];
-  }
-
-  private getFittableByShapeGrid(): FixedLengthArray<
-    FixedLengthArray<FixedLengthArray<number, 15>, 8>,
-    3
-  > {
-    const emptyGrids: FixedLengthArray<
-      FixedLengthArray<FixedLengthArray<number, 15>, 8>,
-      3
-    > = [this.getEmptyGrid(), this.getEmptyGrid(), this.getEmptyGrid()];
-
-    const validPositionsByShapes = this.getValidPositionsByShapes();
-
-    validPositionsByShapes.forEach((positions, positionIndex) =>
-      positions.forEach(({ row, col }) => {
-        const rowOffset = gridPadding[row];
-        const realCol = col + rowOffset;
-        emptyGrids[positionIndex][row][realCol] = 1;
-      })
-    );
-
-    return emptyGrids;
   }
 
   public getTensorGameState(): tf.Tensor {
@@ -468,9 +365,9 @@ class Game {
               (pos) => pos.row === triangle.row && pos.col === triangle.col
             )
               ? {
-                  ...triangle,
-                  color,
-                }
+                ...triangle,
+                color,
+              }
               : triangle
           )
         );

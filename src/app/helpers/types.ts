@@ -18,5 +18,15 @@ export type Memory = {
   action: number;
   reward: number;
   nextState: TensorGameState;
+  stateSequence: tf.Tensor;
+  nextStateSequence: tf.Tensor;
   done: boolean;
 };
+
+export interface Transition {
+  state: tf.Tensor;       // Current state
+  action: number;         // Action taken
+  reward: number;         // Reward received
+  nextState: tf.Tensor;   // Next state after the action
+  done: boolean;          // Whether the episode has ended
+}

@@ -9,7 +9,6 @@ import { colsPerRowGridPadded, gridPadding } from "../helpers/constants";
 export class GameEnvironment {
   private game: Game;
   private previousScore = 0;
-  private howLongStaticScore = 0;
 
   constructor(game: Game) {
     this.game = game;
@@ -17,7 +16,6 @@ export class GameEnvironment {
 
   reset() {
     this.previousScore = 0;
-    this.howLongStaticScore = 0;
     this.game.resetGame();
     return this.getTensorInputState();
   }
@@ -35,7 +33,8 @@ export class GameEnvironment {
   }
 
   getTensorInputState(): tf.Tensor {
-    return this.game.getTensorGameState();
+    const state = this.game.getTensorGameState();
+    return state.squeeze();
   }
 
   getValidActionsMask(): tf.Tensor {
@@ -72,40 +71,45 @@ export class GameEnvironment {
     const col = paddedCol - rowPadding;
 
     const validPositions = this.game.getValidPositionsByShapes()[shapeIndex];
-    const isValidMove = validPositions.some(
+    const isValidMove = validPositions?.some(
       (pos) => pos.col === col && pos.row === row
     );
+    const score = this.getScore();
 
-    let reward = -1; // Default penalty for invalid move
+    let reward = 0;
     let done = false;
+
+    const currentShape = this.game.shapes[shapeIndex]
+    const shapeLength = currentShape.length
 
     if (isValidMove) {
       const moveSuccess = this.game.moveShapeToTriangle(col, row, shapeIndex);
+
       if (moveSuccess) {
-        const score = this.getScore();
         const scoreDiff = score - this.previousScore;
 
         if (scoreDiff > 0) {
-          reward = scoreDiff * 10; // Reward for collapsing lines
+          const diffByShapeLeng = Math.sqrt(scoreDiff / (shapeLength))
+          reward += scoreDiff * diffByShapeLeng
         } else {
-          reward = 1; // Small reward for valid move
+          reward += -2 * shapeLength;
         }
 
         this.previousScore = score;
-        this.howLongStaticScore = 0;
       } else {
-        reward = -1; // Penalty for invalid move
-        this.howLongStaticScore += 1;
+        reward += -2 * shapeLength;
       }
     } else {
-      reward = -1; // Penalty for invalid move
-      this.howLongStaticScore += 1;
+      reward += -2 * shapeLength;
     }
+
 
     if (this.game.isGameOver()) {
       done = true;
-      reward = -10; // Penalty for game over
+      reward = -50;
     }
+
+
 
     const nextState = this.getTensorInputState();
     return { nextState, reward, done };
@@ -124,7 +128,6 @@ export class GameEnvironment {
       }
       cumulativeCols += colsInRow;
     }
-    // If index is out of bounds
     return { col: -1, row: -1 };
   }
 }

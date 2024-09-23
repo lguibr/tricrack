@@ -5,18 +5,17 @@ import {
   explorationDecay,
   learningRate,
   updateTargetNetworkEveryNSteps,
-  totalShapes,
-  totalPositions,
   actionSize,
   batchSize,
+  sequenceLength,
 } from "./configs";
-import { Memory, TensorGameState } from "../helpers/types";
+import { Transition } from "../helpers/types";
 
 export class DQNAgent {
   public actionTimes: number[] = [];
   public replayTimes: number[] = [];
   private actionSize: number;
-  public memory: Memory[];
+  public memory: Transition[][];
   private replayBufferSize: number;
 
   private discountFactor: number;
@@ -27,22 +26,29 @@ export class DQNAgent {
   private model: tf.LayersModel;
   private targetModel: tf.LayersModel;
   private updateTargetNetworkFrequency: number;
-  private trainStep: number;
+  public trainStep: number;
   private totalLoss: number;
   private batchCount: number;
-  private modelName: string;
   public averageLoss: number;
+  public averageReward: number = 0;
+  public maxQValue: number = 0;
+
+  private sequenceLength: number;
+  private stateSequence: tf.Tensor[];
+  private currentSequence: Transition[];
 
   constructor(actionSize: number) {
-    this.modelName = "indexeddb://DQNAgentModel";
     this.actionSize = actionSize;
     this.memory = [];
-    this.discountFactor = 0.99;
-    this.explorationRate = 1.0;
-    this.explorationMin = 0.02;
     this.replayBufferSize = 200_000;
+    this.discountFactor = 0.99;
+    this.explorationRate = 1;
+    this.explorationMin = 0.05;
     this.explorationDecay = explorationDecay;
     this.learningRate = learningRate;
+    this.sequenceLength = sequenceLength;
+    this.stateSequence = [];
+    this.currentSequence = [];
     this.model = this.buildModel();
     this.targetModel = this.buildModel();
     this.updateTargetNetworkFrequency = updateTargetNetworkEveryNSteps;
@@ -56,118 +62,70 @@ export class DQNAgent {
     });
   }
 
-  buildModel() {
-    const gridInputs = tf.input({ shape: [8, 15, 3], name: "grid_input" });
+  buildModel(): tf.LayersModel {
+    const gridInputs = tf.input({
+      shape: [this.sequenceLength, 8, 15, 3],
+      name: "grid_input",
+    });
 
-    // Block 1
-    let x = tf.layers
-      .conv2d({
-        filters: 8,
-        kernelSize: 3,
-        padding: "same",
-        activation: "relu",
-      })
-      .apply(gridInputs) as tf.SymbolicTensor;
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    let x = gridInputs;
+
+    // **First Conv2D Layer with TimeDistributed**
+    const convLayer1 = tf.layers.conv2d({
+      filters: 32,
+      kernelSize: 3,
+      padding: "same",
+      activation: "relu",
+    });
     x = tf.layers
-      .maxPooling2d({ poolSize: 2, strides: 2 })
+      .timeDistributed({ layer: convLayer1 })
       .apply(x) as tf.SymbolicTensor;
 
-    // Block 2
+    // **BatchNormalization Layer with TimeDistributed**
+    const batchNormLayer1 = tf.layers.batchNormalization();
     x = tf.layers
-      .conv2d({
-        filters: 16,
-        kernelSize: 5,
-        padding: "same",
-        activation: "relu",
-      })
-      .apply(x) as tf.SymbolicTensor;
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
-    x = tf.layers
-      .conv2d({
-        filters: 32,
-        kernelSize: 8,
-        padding: "same",
-        activation: "relu",
-      })
-      .apply(x) as tf.SymbolicTensor;
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
-    x = tf.layers
-      .maxPooling2d({ poolSize: 2, strides: 2 })
+      .timeDistributed({ layer: batchNormLayer1 })
       .apply(x) as tf.SymbolicTensor;
 
-    // Block 3
+    // **MaxPooling Layer with TimeDistributed**
+    const maxPoolLayer = tf.layers.maxPooling2d({ poolSize: 2, strides: 2 });
     x = tf.layers
-      .conv2d({
-        filters: 64,
-        kernelSize: 12,
-        padding: "same",
-        activation: "relu",
-      })
+      .timeDistributed({ layer: maxPoolLayer })
       .apply(x) as tf.SymbolicTensor;
 
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
+    // **GlobalAveragePooling2D Layer with TimeDistributed**
+    const globalAvgPoolLayer = tf.layers.globalAveragePooling2d(x);
     x = tf.layers
-      .maxPooling2d({ poolSize: 2, strides: 2 })
+      .timeDistributed({ layer: globalAvgPoolLayer })
       .apply(x) as tf.SymbolicTensor;
 
-    // Residual Block
-    const residual = x;
-    let res = tf.layers
-      .conv2d({
-        filters: 64,
-        kernelSize: 1,
-        padding: "same",
-        activation: "relu",
-      })
-      .apply(residual) as tf.SymbolicTensor;
-    res = tf.layers.batchNormalization().apply(res) as tf.SymbolicTensor;
-    res = tf.layers
-      .conv2d({
-        filters: 64,
-        kernelSize: 2,
-        padding: "same",
-        activation: "relu",
-      })
-      .apply(res) as tf.SymbolicTensor;
-    res = tf.layers.batchNormalization().apply(res) as tf.SymbolicTensor;
-    x = tf.layers.add().apply([x, res]) as tf.SymbolicTensor;
+    // **LSTM Layer**
     x = tf.layers
-      .activation({ activation: "relu" })
+      .lstm({ units: 128, returnSequences: false, activation: "tanh" })
       .apply(x) as tf.SymbolicTensor;
 
-    // Global Average Pooling
-    x = tf.layers.globalAveragePooling2d(x).apply(x) as tf.SymbolicTensor;
+    // **Fully Connected Layer with ReLU and Dropout**
+    x = tf.layers
+      .dense({ units: 384, activation: "relu" })
+      .apply(x) as tf.SymbolicTensor;
+    x = tf.layers
+      .dropout({ rate: 0.5 })
+      .apply(x) as tf.SymbolicTensor;
 
-    // Fully Connected Layers
     x = tf.layers
       .dense({ units: 1024, activation: "relu" })
       .apply(x) as tf.SymbolicTensor;
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
-    x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
     x = tf.layers
-      .dense({ units: 512, activation: "relu" })
+      .dropout({ rate: 0.5 })
       .apply(x) as tf.SymbolicTensor;
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
-    x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
-    x = tf.layers
-      .dense({ units: 256, activation: "relu" })
-      .apply(x) as tf.SymbolicTensor;
-    x = tf.layers.batchNormalization().apply(x) as tf.SymbolicTensor;
-    x = tf.layers.dropout({ rate: 0.2 }).apply(x) as tf.SymbolicTensor;
 
-    // Output Layer
+    // **Output Layer**
     const output = tf.layers
-      .dense({
-        units: this.actionSize,
-        activation: "linear",
-        name: "output",
-      })
+      .dense({ units: this.actionSize, activation: "linear", name: "output" })
       .apply(x) as tf.SymbolicTensor;
 
     const model = tf.model({ inputs: gridInputs, outputs: output });
 
-    // Compile the model with an optimizer that includes learning rate scheduling
     const optimizer = tf.train.adam(this.learningRate);
     model.compile({
       loss: "meanSquaredError",
@@ -178,129 +136,223 @@ export class DQNAgent {
     return model;
   }
 
+  // **Remember function to store experiences in memory**
   remember(
-    state: TensorGameState,
+    state: tf.Tensor,
     action: number,
     reward: number,
-    nextState: TensorGameState,
+    nextState: tf.Tensor,
     done: boolean
   ) {
-    if (this.memory.length >= this.replayBufferSize) this.memory.shift();
-    this.memory.push({ state, action, reward, nextState, done });
+    // Clip reward to [-1, 1]
+    const clippedReward = Math.max(-1, Math.min(1, reward));
+
+    // Ensure states have correct shape
+    state = state.squeeze();
+    nextState = nextState.squeeze();
+
+    const transition: Transition = { state, action, reward: clippedReward, nextState, done };
+    this.currentSequence.push(transition);
+
+    if (this.currentSequence.length >= this.sequenceLength) {
+      this.memory.push([...this.currentSequence]);
+      this.currentSequence.shift();
+
+      if (this.memory.length > this.replayBufferSize) {
+        const removedSequence = this.memory.shift();
+        removedSequence?.forEach((trans) => {
+          trans.state.dispose();
+          trans.nextState.dispose();
+        });
+      }
+    }
   }
 
-  act(state: TensorGameState, validActionsMask: tf.Tensor): number {
-    const start = Date.now(); // Start timing
-    const gridInput = state;
-
-    if (Math.random() <= this.explorationRate) {
-      // Exploration: Randomly select a valid action
-      const validActionsIndices = validActionsMask
-        .dataSync()
-        .map((value, index) => (value === 1 ? index : -1))
-        .filter((index) => index !== -1);
-      const randomIndex =
-        validActionsIndices[
+  // **Act method to select an action based on epsilon-greedy policy**
+  act(validActionsMask: tf.Tensor): number {
+    return tf.tidy(() => {
+      if (Math.random() <= this.explorationRate) {
+        const validActionsIndices = validActionsMask
+          .dataSync()
+          .map((value, index) => (value === 1 ? index : -1))
+          .filter((index) => index !== -1);
+        const randomIndex =
+          validActionsIndices[
           Math.floor(Math.random() * validActionsIndices.length)
-        ];
-      return randomIndex;
-    } else {
-      // Exploitation: Predict the best action
-      const predictedQValues = this.model.predict(
-        gridInput.reshape([1, 8, 15, 3])
-      ) as tf.Tensor;
-      const maskedQValues = predictedQValues.add(validActionsMask.mul(-1e9));
-      const actionIndex = maskedQValues.argMax(1).dataSync()[0];
-      return actionIndex;
-    }
-  }
-
-  async replay() {
-    const start = Date.now();
-    const minibatchSize = Math.min(batchSize, this.memory.length);
-    const minibatch = this.memory.slice(-minibatchSize);
-    let batchLoss = 0;
-
-    const states = minibatch.map((m) => m.state.reshape([8, 15, 3]));
-    const nextStates = minibatch.map((m) => m.nextState.reshape([8, 15, 3]));
-    const actions = minibatch.map((m) => m.action);
-    const rewards = minibatch.map((m) => m.reward);
-    const dones = minibatch.map((m) => (m.done ? 0 : 1));
-
-    const statesTensor = tf.stack(states);
-    const nextStatesTensor = tf.stack(nextStates);
-
-    const targetQs = tf.tidy(() => {
-      const targetQValues = this.targetModel.predict(
-        nextStatesTensor
-      ) as tf.Tensor;
-      const maxTargetQValues = targetQValues.max(1).mul(tf.tensor1d(dones));
-      return tf
-        .tensor1d(rewards)
-        .add(maxTargetQValues.mul(this.discountFactor));
+          ];
+        return randomIndex;
+      } else {
+        const stateSequence = this.getCurrentStateSequence();
+        const reshapedStateSequence = stateSequence.reshape([
+          1,
+          this.sequenceLength,
+          8,
+          15,
+          3,
+        ]);
+        const predictedQValues = this.model.predict(
+          reshapedStateSequence
+        ) as tf.Tensor;
+        const maskedQValues = predictedQValues.add(validActionsMask.mul(-1e9));
+        const actionIndex = maskedQValues.argMax(1).dataSync()[0];
+        reshapedStateSequence.dispose();
+        stateSequence.dispose();
+        predictedQValues.dispose();
+        maskedQValues.dispose();
+        return actionIndex;
+      }
     });
-
-    const masks = tf.oneHot(actions, this.actionSize);
-
-    const optimizer = tf.train.adam(this.learningRate);
-    const lossFunction = () => {
-      const qValues = this.model.predict(statesTensor) as tf.Tensor;
-      const qValuesWithMasks = qValues.mul(masks);
-      const actionQValues = tf.sum(qValuesWithMasks, 1);
-      const loss = tf.losses.meanSquaredError(targetQs, actionQValues);
-      return loss;
-    };
-
-    const grads = tf.variableGrads(lossFunction);
-    optimizer.applyGradients(grads.grads);
-
-    batchLoss = grads.value.dataSync()[0];
-    this.totalLoss += batchLoss;
-    this.batchCount++;
-
-    tf.dispose([
-      statesTensor,
-      nextStatesTensor,
-      targetQs,
-      masks,
-      grads.value,
-      ...Object.values(grads.grads),
-    ]);
-
-    this.trainStep++;
-    if (this.trainStep % this.updateTargetNetworkFrequency === 0) {
-      this.updateTargetNetwork();
-      await this.saveModelWeights();
-    }
-
-    if (this.explorationRate > this.explorationMin) {
-      this.explorationRate *= this.explorationDecay;
-    }
-
-    this.averageLoss = this.totalLoss / this.batchCount;
-
-    const end = Date.now();
-    const duration = end - start;
-    this.replayTimes.push(duration);
   }
 
+  // **Replay method to train the model from past experiences**
+  async replay() {
+    if (this.memory.length < batchSize) return;
+
+    try {
+      const start = Date.now();
+      const minibatchSize = Math.min(batchSize, this.memory.length);
+      const minibatch = [];
+
+      for (let i = 0; i < minibatchSize; i++) {
+        const index = Math.floor(Math.random() * this.memory.length);
+        minibatch.push(this.memory[index]);
+      }
+
+      // Prepare data
+      const stateSequences = minibatch.map((seq) =>
+        seq.map((t) => t.state.clone())
+      );
+      const nextStateSequences = minibatch.map((seq) =>
+        seq.map((t) => t.nextState.clone())
+      );
+      const actions = minibatch.map((seq) => seq[seq.length - 1].action);
+      const rewards = minibatch.map((seq) => seq[seq.length - 1].reward);
+      const dones = minibatch.map((seq) => (seq[seq.length - 1].done ? 0 : 1));
+
+      // Stack sequences
+      const statesTensor = tf.stack(
+        stateSequences.map((seq) => tf.stack(seq))
+      );
+      const nextStatesTensor = tf.stack(
+        nextStateSequences.map((seq) => tf.stack(seq))
+      );
+
+
+
+      // Compute target Q-values using Double DQN
+      const targetQValues = this.targetModel.predict(nextStatesTensor) as tf.Tensor;
+      const onlineQValues = this.model.predict(nextStatesTensor) as tf.Tensor;
+      const bestActions = onlineQValues.argMax(-1);
+      const bestActionsArray = bestActions.dataSync();
+      const targetQValuesArray = targetQValues.arraySync() as number[][];
+
+      const selectedTargetQ = bestActionsArray.map((action, idx) => {
+        return targetQValuesArray[idx][action];
+      });
+
+      const targetQ = tf.tensor1d(rewards).add(
+        tf.tensor1d(selectedTargetQ).mul(this.discountFactor)
+      );
+
+      const masks = tf.oneHot(actions, this.actionSize);
+
+      // **Optimization Step**
+      const optimizer = tf.train.adam(this.learningRate);
+
+      // **Compute and minimize the loss inside the minimize function**
+      optimizer.minimize(() => {
+        const qValues = this.model.predict(statesTensor) as tf.Tensor;
+        const actionQValues = tf.sum(tf.mul(qValues, masks), -1);
+        const loss = tf.losses.meanSquaredError(targetQ, actionQValues);
+        this.totalLoss += loss.dataSync()[0];
+        this.batchCount += 1;
+        loss.dispose();
+        qValues.dispose();
+        actionQValues.dispose();
+        return loss;
+      }, /* returnUnusedTensors */ false);
+
+      // **Update metrics**
+      const avgLoss = this.totalLoss / this.batchCount;
+      this.averageLoss = avgLoss;
+
+      // **Dispose tensors to free memory**
+      statesTensor.dispose();
+      nextStatesTensor.dispose();
+      targetQ.dispose();
+      masks.dispose();
+
+      this.trainStep++;
+      if (this.trainStep % this.updateTargetNetworkFrequency === 0) {
+        this.updateTargetNetwork();
+        await this.saveModelWeights();
+      }
+
+      if (this.explorationRate > this.explorationMin) {
+        this.explorationRate *= this.explorationDecay;
+      }
+
+      const end = Date.now();
+      const duration = end - start;
+      this.replayTimes.push(duration);
+    } catch (error) {
+      console.error("Error during replay:", error);
+    }
+  }
+
+  // **Save model weights to IndexedDB**
   async saveModelWeights() {
-    await this.model.save(this.modelName);
-    console.log(`Model saved to ${this.modelName}`);
+    await this.model.save("indexeddb://DQNAgentModel");
+    console.log(`Model saved to IndexedDB`);
   }
 
+  // **Load model weights from IndexedDB**
   async loadModelWeights() {
     try {
-      const loadedModel = await tf.loadLayersModel(this.modelName);
+      const loadedModel = await tf.loadLayersModel(
+        "indexeddb://DQNAgentModel"
+      );
       this.model.setWeights(loadedModel.getWeights());
-      console.log(`Model weights loaded from ${this.modelName}`);
+      console.log(`Model weights loaded from IndexedDB`);
     } catch (error) {
       console.error("Failed to load model weights:", error);
-      // Continue without throwing an error
     }
   }
 
+  // **Update target network to match the primary network**
   updateTargetNetwork() {
     this.targetModel.setWeights(this.model.getWeights());
+    console.log("Target network updated.");
+  }
+
+  // **State sequence management**
+
+  // Reset state sequence at the start of an episode
+  resetStateSequence(initialState: tf.Tensor) {
+    initialState = initialState.squeeze();
+    this.stateSequence = [];
+    for (let i = 0; i < this.sequenceLength; i++) {
+      this.stateSequence.push(initialState.clone());
+    }
+    console.log("State sequence reset.");
+  }
+
+  // Update state sequence with a new state
+  updateStateSequence(newState: tf.Tensor) {
+    newState = newState.squeeze();
+    if (this.stateSequence.length >= this.sequenceLength) {
+      const oldState = this.stateSequence.shift();
+      oldState?.dispose();
+    }
+    this.stateSequence.push(newState.clone());
+  }
+
+  // Get the current state sequence as a tensor
+  getCurrentStateSequence(): tf.Tensor {
+    const correctedSequence = this.stateSequence.map((state) =>
+      state.squeeze()
+    );
+    const sequence = tf.stack(correctedSequence);
+    return sequence;
   }
 }

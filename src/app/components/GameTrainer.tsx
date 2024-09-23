@@ -5,10 +5,10 @@ import { GameEnvironment } from "../learn/GameEnvironment";
 import { DQNAgent } from "../learn/DQNAgent";
 import Game from "../game";
 import {
-  movementsBatchSize,
   replayEveryNSteps,
   trainingEpisodes,
   actionSize,
+  sequenceLength,
 } from "../learn/configs";
 import * as tf from "@tensorflow/tfjs";
 import * as tfvis from "@tensorflow/tfjs-vis";
@@ -28,14 +28,12 @@ const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
   const replayTimeValues = useRef<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
-    // Ensure GameEnvironment is created only once
     if (!gameEnvironmentRef.current) {
       gameEnvironmentRef.current = new GameEnvironment(game);
     }
 
-    // Create and configure DQNAgent only once
     if (!agentRef.current) {
-      agentRef.current = new DQNAgent(actionSize);
+      agentRef.current = new DQNAgent(actionSize, game);
     }
 
     const trainAgent = async () => {
@@ -43,133 +41,139 @@ const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
       haveInstantiated.current = true;
       const dqnAgent = agentRef.current!;
       const gameEnvironment = gameEnvironmentRef.current!;
-      if (dqnAgent && gameEnvironment) {
-        for (let iteration = 0; iteration < trainingEpisodes; iteration++) {
-          setIteration(iteration + 1);
-          let state = gameEnvironment.reset();
-          let done = false;
-          let totalReward = 0;
 
-          while (!done) {
-            const validActionsMask = gameEnvironment.getValidActionsMask();
-            const action = dqnAgent.act(state, validActionsMask);
-            const {
-              nextState,
-              reward,
-              done: isDone,
-            } = gameEnvironment.step(action);
-            done = isDone;
-            totalReward += reward;
+      for (let episode = 0; episode < trainingEpisodes; episode++) {
+        console.log(`Starting Episode ${episode + 1}`);
+        setIteration(episode + 1);
+        let state = gameEnvironment.reset();
 
-            dqnAgent.remember(state, action, reward, nextState, isDone);
-            state = nextState;
+        // Initialize the state sequence
+        dqnAgent.resetStateSequence(state);
 
-            if (dqnAgent.memory.length % replayEveryNSteps === 0) {
-              await dqnAgent.replay();
-              await tf.nextFrame(); // Yield control to the browser
-            }
+        let done = false;
+        let totalReward = 0;
 
-            // Dispose tensors to prevent memory leaks
-            validActionsMask.dispose();
+        while (!done) {
+          const validActionsMask = gameEnvironment.getValidActionsMask();
+          const action = dqnAgent.act(validActionsMask);
+          const { nextState, reward, done: isDone } = gameEnvironment.step(action);
+          totalReward += reward;
+
+          // Store the transition
+          dqnAgent.remember(state, action, reward, nextState, isDone);
+
+          // Update the state sequence
+          dqnAgent.updateStateSequence(nextState);
+
+          state = nextState;
+          done = isDone;
+
+          if (dqnAgent.memory.length % replayEveryNSteps === 0) {
+            console.log(`Replaying at Episode ${episode + 1}, Step ${dqnAgent.trainStep}`);
+            await dqnAgent.replay();
+            await tf.nextFrame();
           }
 
-          await dqnAgent.replay();
-          await tf.nextFrame(); // Yield control to the browser
-
-          // Update charts BEFORE resetting the game
-          const currentAverageLoss = dqnAgent.averageLoss || 0;
-          const currentExplorationRate = dqnAgent.explorationRate || 0;
-          const currentScore = game.score || 0; // Capture the score before reset
-          const currentActionTime = dqnAgent.actionTimes.slice(-1)[0] || 0;
-          const currentReplayTime = dqnAgent.replayTimes.slice(-1)[0] || 0;
-
-          // Push metrics to chart data
-          lossValues.current.push({ x: iteration, y: currentAverageLoss });
-          explorationRateValues.current.push({
-            x: iteration,
-            y: currentExplorationRate,
-          });
-          scoreValues.current.push({ x: iteration, y: currentScore });
-          totalRewardValues.current.push({ x: iteration, y: totalReward });
-          actionTimeValues.current.push({
-            x: iteration,
-            y: currentActionTime,
-          });
-          replayTimeValues.current.push({
-            x: iteration,
-            y: currentReplayTime,
-          });
-
-          // Render charts
-          tfvis.render.linechart(
-            { name: "Loss Over Time", tab: "Training Metrics" },
-            { values: [lossValues.current] },
-            {
-              xLabel: "Iteration",
-              yLabel: "Loss",
-              width: 500,
-              height: 300,
-            }
-          );
-
-          tfvis.render.linechart(
-            { name: "Exploration Rate Over Time", tab: "Training Metrics" },
-            { values: [explorationRateValues.current] },
-            {
-              xLabel: "Iteration",
-              yLabel: "Exploration Rate",
-              width: 500,
-              height: 300,
-            }
-          );
-
-          tfvis.render.linechart(
-            { name: "Score Over Time", tab: "Training Metrics" },
-            { values: [scoreValues.current] },
-            {
-              xLabel: "Iteration",
-              yLabel: "Score",
-              width: 500,
-              height: 300,
-            }
-          );
-
-          tfvis.render.linechart(
-            { name: "Total Reward Over Time", tab: "Training Metrics" },
-            { values: [totalRewardValues.current] },
-            {
-              xLabel: "Iteration",
-              yLabel: "Total Reward",
-              width: 500,
-              height: 300,
-            }
-          );
-
-          tfvis.render.linechart(
-            { name: "Action Time Over Time", tab: "Performance Metrics" },
-            { values: [actionTimeValues.current] },
-            {
-              xLabel: "Iteration",
-              yLabel: "Action Time (ms)",
-              width: 500,
-              height: 300,
-            }
-          );
-
-          tfvis.render.linechart(
-            { name: "Replay Time Over Time", tab: "Performance Metrics" },
-            { values: [replayTimeValues.current] },
-            {
-              xLabel: "Iteration",
-              yLabel: "Replay Time (ms)",
-              width: 500,
-              height: 300,
-            }
-          );
-
-          gameEnvironment.reset(); // Now reset the game
-          await tf.nextFrame(); // Yield control to the browser
+          validActionsMask.dispose();
         }
+
+        console.log(`Final Replay for Episode ${episode + 1}`);
+        await dqnAgent.replay();
+        await tf.nextFrame();
+
+        // Update charts
+        const currentAverageLoss = dqnAgent.averageLoss || 0;
+        const currentExplorationRate = dqnAgent.explorationRate || 0;
+        const currentScore = game.score || 0;
+        const currentActionTime = dqnAgent.actionTimes.slice(-1)[0] || 0;
+        const currentReplayTime = dqnAgent.replayTimes.slice(-1)[0] || 0;
+
+        lossValues.current.push({ x: episode, y: currentAverageLoss });
+        explorationRateValues.current.push({
+          x: episode,
+          y: currentExplorationRate,
+        });
+        scoreValues.current.push({ x: episode, y: currentScore });
+        totalRewardValues.current.push({ x: episode, y: totalReward });
+        actionTimeValues.current.push({
+          x: episode,
+          y: currentActionTime,
+        });
+        replayTimeValues.current.push({
+          x: episode,
+          y: currentReplayTime,
+        });
+
+        // Render charts
+        tfvis.render.linechart(
+          { name: "Loss Over Time", tab: "Training Metrics" },
+          { values: [lossValues.current] },
+          {
+            xLabel: "Episode",
+            yLabel: "Loss",
+            width: 500,
+            height: 300,
+          }
+        );
+
+        tfvis.render.linechart(
+          { name: "Exploration Rate Over Time", tab: "Training Metrics" },
+          { values: [explorationRateValues.current] },
+          {
+            xLabel: "Episode",
+            yLabel: "Exploration Rate",
+            width: 500,
+            height: 300,
+          }
+        );
+
+        tfvis.render.linechart(
+          { name: "Score Over Time", tab: "Training Metrics" },
+          { values: [scoreValues.current] },
+          {
+            xLabel: "Episode",
+            yLabel: "Score",
+            width: 500,
+            height: 300,
+          }
+        );
+
+        tfvis.render.linechart(
+          { name: "Total Reward Over Time", tab: "Training Metrics" },
+          { values: [totalRewardValues.current] },
+          {
+            xLabel: "Episode",
+            yLabel: "Total Reward",
+            width: 500,
+            height: 300,
+          }
+        );
+
+        tfvis.render.linechart(
+          { name: "Action Time Over Time", tab: "Performance Metrics" },
+          { values: [actionTimeValues.current] },
+          {
+            xLabel: "Episode",
+            yLabel: "Action Time (ms)",
+            width: 500,
+            height: 300,
+          }
+        );
+
+        tfvis.render.linechart(
+          { name: "Replay Time Over Time", tab: "Performance Metrics" },
+          { values: [replayTimeValues.current] },
+          {
+            xLabel: "Episode",
+            yLabel: "Replay Time (ms)",
+            width: 500,
+            height: 300,
+          }
+        );
+
+        console.log(`Episode ${episode + 1} completed. Resetting game.`);
+        gameEnvironment.reset();
+        await tf.nextFrame();
       }
     };
 
@@ -189,7 +193,7 @@ const GameTrainer: React.FC<{ game: Game }> = ({ game }) => {
         }}
       >
         <h2>
-          Training the agent: iteration {iteration} of {trainingEpisodes}...
+          Training the agent: episode {iteration} of {trainingEpisodes}...
         </h2>
       </div>
       <FloatingContent>

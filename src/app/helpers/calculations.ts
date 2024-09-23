@@ -76,9 +76,6 @@ export function buildUnitByDepthCustom(
   const unit: number[] = x
     .map((x) => a * x * x + b * x + c)
     .map((val) => Math.round(val));
-  console.log("unit");
-  console.log(unit);
-
   return unit;
 }
 
