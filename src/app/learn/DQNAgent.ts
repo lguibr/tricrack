@@ -69,30 +69,6 @@ export class DQNAgent {
     });
 
     let x = gridInputs;
-
-    // **First Conv2D Layer with TimeDistributed**
-    const convLayer1 = tf.layers.conv2d({
-      filters: 32,
-      kernelSize: 3,
-      padding: "same",
-      activation: "relu",
-    });
-    x = tf.layers
-      .timeDistributed({ layer: convLayer1 })
-      .apply(x) as tf.SymbolicTensor;
-
-    // **BatchNormalization Layer with TimeDistributed**
-    const batchNormLayer1 = tf.layers.batchNormalization();
-    x = tf.layers
-      .timeDistributed({ layer: batchNormLayer1 })
-      .apply(x) as tf.SymbolicTensor;
-
-    // **MaxPooling Layer with TimeDistributed**
-    const maxPoolLayer = tf.layers.maxPooling2d({ poolSize: 2, strides: 2 });
-    x = tf.layers
-      .timeDistributed({ layer: maxPoolLayer })
-      .apply(x) as tf.SymbolicTensor;
-
     // **GlobalAveragePooling2D Layer with TimeDistributed**
     const globalAvgPoolLayer = tf.layers.globalAveragePooling2d(x);
     x = tf.layers
@@ -101,12 +77,12 @@ export class DQNAgent {
 
     // **LSTM Layer**
     x = tf.layers
-      .lstm({ units: 128, returnSequences: false, activation: "tanh" })
+      .lstm({ units: 256, returnSequences: false, activation: "tanh" })
       .apply(x) as tf.SymbolicTensor;
 
     // **Fully Connected Layer with ReLU and Dropout**
     x = tf.layers
-      .dense({ units: 384, activation: "relu" })
+      .dense({ units: 2048, activation: "relu" })
       .apply(x) as tf.SymbolicTensor;
     x = tf.layers
       .dropout({ rate: 0.5 })
@@ -118,7 +94,6 @@ export class DQNAgent {
     x = tf.layers
       .dropout({ rate: 0.5 })
       .apply(x) as tf.SymbolicTensor;
-
     // **Output Layer**
     const output = tf.layers
       .dense({ units: this.actionSize, activation: "linear", name: "output" })
@@ -133,6 +108,7 @@ export class DQNAgent {
       metrics: ["mse"],
     });
 
+    model.summary()
     return model;
   }
 
